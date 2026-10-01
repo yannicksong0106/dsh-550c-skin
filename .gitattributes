@@ -1,0 +1,8 @@
+# Pin line endings. This package ships a built artifact (lib/client.js) and
+# checks it byte-for-byte, so a checkout that rewrites LF to CRLF would make the
+# build's output differ from the committed one for no reason anyone could see.
+* text=auto eol=lf
+
+# The build output is generated and compared byte-for-byte; never let a tool
+# rewrite it on the way in or out.
+lib/client.js -text

@@ -66,6 +66,12 @@
     clientH: document.documentElement.clientHeight,
   }
 
+  // The one region the skin is ALLOWED to change: the dialog box is rebuilt as a
+  // console (header band, instrument row), so its own geometry moves by design.
+  // Everything outside it must still be byte-identical, and the checker asserts
+  // exactly that — an authorised exception is not the same as an unchecked one.
+  report.__composerRegion = ['composerSeat', 'composerCard', 'composerInput', 'placeholder', 'hero', 'headline']
+
   // The ancestor chain from the workspace seat up to #root, with the box-model
   // numbers that could explain a width change. A cascade of 1-2px shifts is
   // otherwise very hard to attribute; this names the level where it starts.

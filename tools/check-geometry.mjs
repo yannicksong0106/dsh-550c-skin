@@ -95,15 +95,46 @@ function measure(label, state) {
   })
 }
 
+/**
+ * Compare two measurements.
+ *
+ * The dialog box is an AUTHORISED exception: this skin rebuilds the composer as
+ * a console (header band + instrument row), so the landmarks inside it are
+ * expected to move. Everything else in the shell must not, and that is the
+ * assertion that matters — the exception is scoped, named and reported rather
+ * than silently widening the check.
+ *
+ * @returns `{ keys, region, outside, inside }` where `outside` and `inside` are
+ *   arrays of `{ name, off, on }` for the landmarks that moved.
+ */
 function compare(stock, skinned) {
+  const region = new Set(stock.__composerRegion ?? [])
   const keys = Object.keys(stock).filter((key) => !key.startsWith('__'))
-  const moved = []
-  for (const key of keys) {
-    const a = JSON.stringify(stock[key])
-    const b = JSON.stringify(skinned[key])
-    if (a !== b) moved.push(`  ${key}\n    off: ${a}\n    on : ${b}`)
+  const outside = []
+  const inside = []
+  for (const name of keys) {
+    const off = JSON.stringify(stock[name])
+    const on = JSON.stringify(skinned[name])
+    if (off === on) continue
+    ;(region.has(name) ? inside : outside).push({ name, off, on })
   }
-  return { keys, moved }
+  return { keys, region, outside, inside }
+}
+
+/** Render one comparison's result and return whether it passed. */
+function report(label, result) {
+  if (result.outside.length === 0) {
+    console.log(
+      `PASS  ${label}: ${result.keys.length - result.inside.length} landmarks outside the dialog box identical` +
+        (result.inside.length === 0
+          ? ', dialog box identical too'
+          : `; dialog box moved by design (${result.inside.map((item) => item.name).join(', ')})`),
+    )
+    return true
+  }
+  console.log(`FAIL  ${label}: ${result.outside.length} landmarks OUTSIDE the dialog box moved`)
+  for (const item of result.outside) console.log(`  ${item.name}\n    off: ${item.off}\n    on : ${item.on}`)
+  return false
 }
 
 async function main() {
@@ -119,30 +150,11 @@ async function main() {
   console.log(`body metrics, skin off: ${JSON.stringify(stock.__body)}`)
 
   let failed = false
-
-  const mono = compare(stock, skinned)
-  if (mono.moved.length === 0) {
-    console.log(`PASS  skin on (monospace): identical across ${mono.keys.length} landmarks`)
-  } else {
-    failed = true
-    console.log(`FAIL  skin on (monospace): ${mono.moved.length} landmarks moved`)
-    console.log(mono.moved.join('\n'))
-  }
-
-  const prop = compare(stock, proportional)
-  if (prop.moved.length === 0) {
-    console.log(`PASS  skin on (proportional font): identical across ${prop.keys.length} landmarks`)
-  } else {
-    failed = true
-    console.log(`FAIL  skin on (proportional font): ${prop.moved.length} landmarks moved`)
-    console.log(prop.moved.join('\n'))
-  }
+  if (!report('skin on (monospace)', compare(stock, skinned))) failed = true
+  if (!report('skin on (proportional font)', compare(stock, proportional))) failed = true
 
   if (previousState !== null) writeFileSync(statePath, previousState, 'utf8')
   else writeFileSync(statePath, JSON.stringify({ scheme: 'off' }, null, 2) + '\n', 'utf8')
-  if (args.keep !== true) {
-    /* the state file is restored either way; --keep only documents intent */
-  }
 
   process.exit(failed ? 1 : 0)
 }

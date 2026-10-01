@@ -217,14 +217,24 @@ test('every layout exemption is marked and counted', () => {
   // Exemptions are allowed, but only explicit ones — and the count is pinned so
   // adding one is a deliberate act that shows up in review rather than a quiet
   // widening of the check.
+  //
+  // Two exemptions exist, and both are named here on purpose:
+  //   1. the composer's block cursor, the one decoration in text flow;
+  //   2. hiding the harness's own effort picker, which the dialog box's rheostat
+  //      replaces — a layout property on a DSH node, confined to the one region
+  //      this pass is authorised to restructure.
   const exempt = [...rules(css)].filter((rule) => rule.exempt)
-  assert.equal(exempt.length, 1, 'expected exactly one marked exemption')
-  assert.match(exempt[0].selector, /_placeholder/)
-  for (const rule of [...rules(css)]) {
-    if (!rule.exempt) continue
-    // An exemption must be for a pseudo-element, never a real element: a real
-    // element in flow cannot be exempted without moving something.
-    assert.match(rule.selector, /::?[a-z-]+/, 'exempted rules must be pseudo-elements')
+  assert.equal(exempt.length, 2, 'expected exactly two marked exemptions')
+  const selectors = exempt.map((rule) => rule.selector).join('\n')
+  assert.match(selectors, /_placeholder/, 'the cursor exemption must still be present')
+  assert.match(selectors, /_7KE1Ra_triggerEffort/, 'the effort-picker exemption must still be present')
+  for (const rule of exempt) {
+    // An exemption must be for a pseudo-element or a hidden node, never for a
+    // real element that is expected to keep its box.
+    assert.ok(
+      /::?[a-z-]+/.test(rule.selector) || /display:\s*none/.test(rule.body),
+      'an exempted rule must be a pseudo-element or a display:none rule',
+    )
   }
 })
 

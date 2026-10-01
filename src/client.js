@@ -328,7 +328,7 @@ function activate(scheme) {
     // The dialog mark writes itself out inside the composer and then stays as a
     // standing READY readout. Mounted after the tokens so its first painted
     // frame already has the scheme's colours.
-    stopMark: prefs.mark === 'on' ? mountDialogMark() : null,
+    stopMark: prefs.mark === 'on' ? mountDialogConsole() : null,
   }
 }
 
@@ -438,7 +438,7 @@ function republish() {
     live.stopMark()
     live.stopMark = null
   } else if (live.stopMark === null && wantsMark) {
-    live.stopMark = mountDialogMark()
+    live.stopMark = mountDialogConsole()
   }
 }
 

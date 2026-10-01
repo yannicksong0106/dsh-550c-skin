@@ -442,120 +442,491 @@ html[data-550c][data-550c-vig='off'] .c-crt .c-bloom {
   display: none;
 }
 
-/* ── 10. THE 550C MARK, IN THE DIALOG BOX ────────────────────────────────── */
+/* ── 10. THE DIALOG BOX, REBUILT AS A CONSOLE ────────────────────────────── */
 
-/* The mark lives inside the composer card, in the toolbar row's empty middle —
-   a measured 415px gap between the permission trigger and the model selector
-   (tools/scenarios/composer-map.js). It writes itself out as characters and
-   then stays as a standing READY readout.
+/* THE ONE AUTHORISED LAYOUT EXCEPTION.
 
-   Absolutely positioned and `pointer-events:none`, which is load-bearing rather
-   than stylistic: the composer's height is driven by its content, so a mark in
-   flow would resize the whole input cluster. Out of flow it can be any size
-   without moving a box. */
-html[data-550c] .c-dialog-mark {
-  position: absolute;
-  left: 50%;
-  bottom: 10px;
-  z-index: 1;
+   Everything else in this sheet is forbidden from changing DSH's geometry, and
+   test/layout-contract.test.mjs enforces that. The dialog box is deliberately
+   different: this pass gives it a header band (the animated mark and the rate
+   meter, top left), a terminal input, and a control row where the compute-load
+   rheostat abuts the model selector. The composer card therefore gets taller,
+   and the geometry check knows it — it asserts that nothing OUTSIDE the composer
+   moves, and reports the composer region separately instead of pretending it is
+   fixed.
+
+   THE STYLE, AND WHAT IT IS NOT
+
+   An earlier pass drew this like a dot-matrix terminal: `█`/`·` text, 1px
+   right-angled brackets, character-cell bars. It read as a 1980s compiler and
+   clashed with DSH, whose surfaces are soft, rounded and quiet.
+
+   So the rule for everything below is LIGHT, NOT LINES. Where the old pass put a
+   border it now puts a gradient or a glow; where it put square corners it puts
+   the app's own radii; where it put a row of characters it puts a rail with a
+   luminous fill. The console still reads as a machine — but as a machine that
+   belongs to this application. */
+
+html[data-550c] .c-console-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   box-sizing: border-box;
-  pointer-events: none;
-  user-select: none;
-  opacity: 0.85;
-  transform: translateX(-50%);
-  transition: opacity 0.6s ease;
-  -webkit-app-region: initial !important;
-}
-
-/* The pixel mark: block glyphs on a cell grid. `white-space:pre` keeps the
-   authored rows; the tight line-height is what makes the cells stack into a
-   bitmap instead of reading as five lines of text. */
-html[data-550c] .c-dialog-logo {
-  margin: 0;
-  font-family: var(--c-mono);
-  font-size: 5px;
-  line-height: 1.06;
-  letter-spacing: 0.1em;
-  white-space: pre;
-  color: var(--c-amber);
-  text-shadow: 0 0 5px rgba(var(--c-glow-rgb), 0.55);
-}
-
-/* The typed lines, in the instrument voice: small, tracked, upper-case-free
-   because the splash's own log lines are not upper-case. */
-html[data-550c] .c-dialog-text {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 1px;
-  min-width: 0;
-  max-width: 30ch;
+  padding: 0 6px 9px;
   font-family: var(--c-mono);
   font-size: 10px;
-  line-height: 1.3;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-html[data-550c] .c-dialog-line {
+  line-height: 1;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
   color: var(--c-text-dim);
+  user-select: none;
+}
+
+/* The mark is NOT framed, and it is not text. It is a grid of cells whose empty
+   positions are invisible, so the logotype reads as lettering rather than as a
+   dot matrix — the difference between depicting a machine and emulating its
+   display hardware. */
+html[data-550c] .c-mark {
+  --cell: 3px;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), var(--cell));
+  gap: 1px;
+  flex: none;
+  /* A slow breathing glow on the whole mark, on top of the per-cell shimmer. */
+  animation: c-mark-breathe 5.2s ease-in-out infinite;
+}
+
+html[data-550c] .c-cell {
+  width: var(--cell);
+  height: var(--cell);
+  border-radius: 0.5px;
+  background: transparent;
+}
+
+/* Only lit cells are drawn. `data-lit` is set by the boot sequence, one cell at
+   a time, so the mark writes itself out and then stays. */
+html[data-550c] .c-cell[data-lit='1'] {
+  background: var(--c-amber);
+  box-shadow: 0 0 4px rgba(var(--c-glow-rgb), 0.7);
+  /* The phase is per COLUMN, so the light travels across the mark as a wave
+     instead of the whole thing blinking. This is what makes it dynamic. */
+  animation: c-mark-shimmer 2.6s ease-in-out infinite;
+  animation-delay: calc(var(--col) * 65ms);
+}
+
+@keyframes c-mark-shimmer {
+  0%,
+  100% {
+    opacity: 0.62;
+    box-shadow: 0 0 3px rgba(var(--c-glow-rgb), 0.45);
+  }
+  45% {
+    opacity: 1;
+    box-shadow: 0 0 9px rgba(var(--c-glow-rgb), 0.95);
+  }
+}
+
+@keyframes c-mark-breathe {
+  0%,
+  100% {
+    filter: brightness(0.94);
+  }
+  50% {
+    filter: brightness(1.12);
+  }
+}
+
+/* ── the rate meter, in the header right after the mark ──────────────────── */
+
+/* A RATE gauge, not a progress bar: it shows how fast the machine is writing at
+   this moment, and falls back to nothing when output stops. A hairline rail with
+   a luminous fill, and it takes the header's spare width — a meter too short to
+   separate a quiet answer from a fast one is not a meter. */
+html[data-550c] .c-tps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+html[data-550c] .c-tps-rail {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 5px;
+  border-radius: 999px;
+  /* An inset well rather than a flat line: the rail has to read as a channel the
+     light travels along, or the meter looks like a rule on the page. */
+  background: rgba(var(--c-glow-rgb), 0.1);
+  box-shadow: inset 0 0 0 1px rgba(var(--c-glow-rgb), 0.13);
   overflow: hidden;
-  text-overflow: clip;
 }
 
-html[data-550c] .c-dialog-line.is-sys {
-  color: var(--c-text);
+/* A slow highlight that travels the empty rail while nothing is being written.
+   A gauge sitting at zero should still look powered — and this is the same
+   travelling light as the mark's shimmer, so the two read as one instrument. */
+html[data-550c] .c-tps-rail::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(var(--c-glow-rgb), 0.5), transparent);
+  background-size: 34% 100%;
+  background-repeat: no-repeat;
+  animation: c-tps-scan 3.4s ease-in-out infinite;
+  transition: opacity 0.4s linear;
 }
 
-html[data-550c] .c-dialog-line.is-ready {
+/* Once there is real output the scan gets out of the way: the fill is the
+   reading, and a second moving light would compete with it. */
+html[data-550c] .c-tps[data-550c-level='busy'] .c-tps-rail::after,
+html[data-550c] .c-tps[data-550c-level='hot'] .c-tps-rail::after {
+  opacity: 0;
+}
+
+@keyframes c-tps-scan {
+  0% {
+    background-position: -40% 0;
+  }
+  100% {
+    background-position: 140% 0;
+  }
+}
+
+html[data-550c] .c-tps-fill {
+  position: relative;
+  z-index: 1;
+  width: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(var(--c-glow-rgb), 0.5), var(--c-amber));
+  /* A short ease, not a linear snap: the reading should settle, not twitch. */
+  transition: width 0.28s ease-out, background 0.3s linear;
+}
+
+html[data-550c] .c-tps-value {
+  flex: none;
+  min-width: 6ch;
+  color: var(--c-text-faint);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  transition: color 0.3s linear;
+}
+
+html[data-550c] .c-tps-unit {
+  flex: none;
+  color: var(--c-text-faint);
+  letter-spacing: 0.1em;
+}
+
+/* The pressure ladder: quiet → busy → hot. Colour carries the meaning. */
+html[data-550c] .c-tps[data-550c-level='busy'] .c-tps-fill {
+  background: linear-gradient(90deg, rgba(var(--c-glow-rgb), 0.55), var(--c-amber), var(--c-amber-b));
+}
+
+html[data-550c] .c-tps[data-550c-level='busy'] .c-tps-value {
   color: var(--c-amber);
-  letter-spacing: 0.18em;
+}
+
+html[data-550c] .c-tps[data-550c-level='hot'] .c-tps-fill {
+  background: linear-gradient(90deg, var(--c-amber), var(--c-amber-b), var(--c-amber-b));
+  box-shadow: 0 0 10px rgba(var(--c-glow-rgb), 0.8);
+}
+
+html[data-550c] .c-tps[data-550c-level='hot'] .c-tps-value {
+  color: var(--c-amber-b);
   text-shadow: var(--c-glow-text);
 }
 
-/* A blinking cell after the typed line, the same beat as the composer's block
-   cursor — the mark is a terminal, so it ends its line the way a terminal does. */
-html[data-550c] .c-dialog-line:not(.is-ready)::after {
+html[data-550c] .c-console-session {
+  flex: none;
+  color: var(--c-text-faint);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+html[data-550c] .c-console-state {
+  flex: none;
+  color: var(--c-amber-b);
+  letter-spacing: 0.24em;
+  text-shadow: var(--c-glow-text);
+}
+
+/* ── the compute-load rheostat, immediately left of the model selector ───── */
+
+html[data-550c] .c-rig-load {
+  position: relative;
+  flex: none;
+}
+
+/* A soft pill, not a boxed button: it sits among the app's own rounded controls
+   and should look like one of them. */
+html[data-550c] .c-load-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(var(--c-glow-rgb), 0.07);
+  color: var(--c-text-dim);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+html[data-550c] .c-load-trigger:hover {
+  background: rgba(var(--c-glow-rgb), 0.16);
+}
+
+html[data-550c] .c-load-now {
+  color: var(--c-amber);
+  transition: color 0.25s linear, text-shadow 0.25s linear;
+}
+
+/* The panel: rounded, glowing, no hard frame. */
+html[data-550c] .c-load-panel {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  z-index: 40;
+  box-sizing: border-box;
+  width: 252px;
+  padding: 12px 14px 11px;
+  transform: translateX(-50%);
+  border-radius: 12px;
+  background: var(--c-bg-win);
+  box-shadow: 0 0 0 1px rgba(var(--c-glow-rgb), 0.22), inset 0 0 26px rgba(var(--c-glow-rgb), 0.07),
+    0 12px 34px rgba(0, 0, 0, 0.62);
+  font-family: var(--c-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: box-shadow 0.3s linear;
+}
+
+html[data-550c] .c-load-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 9px;
+  margin-bottom: 12px;
+  /* A fading rule instead of a border: the line dissolves at its ends, so it
+     reads as a hairline of light rather than the edge of a box. */
+  background-image: linear-gradient(90deg, transparent, rgba(var(--c-glow-rgb), 0.34), transparent);
+  background-size: 100% 1px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+}
+
+html[data-550c] .c-load-title {
+  color: var(--c-text-dim);
+}
+
+/* THE READING ABOVE THE SLIDER. The point of the control: the figure and its
+   colour say how loaded the machine is, and they change as the fader moves. The
+   percentage is authored by the client half as a data attribute so the
+   stylesheet can scale the glow without re-rendering anything. */
+html[data-550c] .c-load-read {
+  color: var(--c-amber);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.18em;
+  text-shadow: var(--c-glow-text);
+  transition: color 0.25s linear, text-shadow 0.25s linear;
+}
+
+html[data-550c] .c-load-read::after {
+  content: ' / ' attr(data-550c-load) '%';
+  color: var(--c-text-dim);
+  text-shadow: none;
+}
+
+/* The fader. A rheostat, not a web range input: a visible rail, a chunky thumb
+   and the detents the harness actually has. */
+html[data-550c] .c-load-track {
+  position: relative;
+  height: 22px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+html[data-550c] .c-load-track::before {
   content: '';
-  display: inline-block;
-  width: 0.5em;
-  height: 1em;
-  margin-left: 2px;
-  vertical-align: -0.16em;
-  background: var(--c-amber);
-  opacity: 0.7;
-  animation: c-blink 1.06s steps(1) infinite;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: rgba(var(--c-glow-rgb), 0.16);
 }
 
-/* SETTLED: the mark has finished and stays. It comes up to full strength and
-   keeps only a slow breath — a status readout that keeps pulsing is a
-   notification. */
-html[data-550c] .c-dialog-mark[data-550c-state='settled'] {
-  opacity: 1;
+/* THE MOVING FRAME. The filled span is a gradient that runs cool → hot, so the
+   colour under the thumb is literally the load you have dialled in, and the
+   gradient stretches as the thumb travels. */
+html[data-550c] .c-load-fill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--c-cyan), var(--c-amber) 55%, var(--c-amber-b));
+  box-shadow: 0 0 12px rgba(var(--c-glow-rgb), 0.5);
+  transition: width 0.12s linear, background 0.3s linear;
+  pointer-events: none;
 }
 
-html[data-550c] .c-dialog-mark[data-550c-state='settled'] .c-dialog-logo {
-  animation: c-dialog-breathe 6s ease-in-out infinite;
+html[data-550c] .c-load-thumb {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: var(--c-amber-b);
+  box-shadow: 0 0 10px rgba(var(--c-glow-rgb), 0.85), 0 0 0 3px rgba(var(--c-glow-rgb), 0.12);
+  transition: left 0.12s linear, background 0.3s linear, box-shadow 0.3s linear;
+  pointer-events: none;
 }
 
-@keyframes c-dialog-breathe {
+html[data-550c] .c-load-track:focus-visible {
+  outline: 1px solid var(--c-amber);
+  outline-offset: 4px;
+  border-radius: 999px;
+}
+
+/* The detent labels under the rail, the current one lit. */
+html[data-550c] .c-load-ticks {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 9px;
+}
+
+html[data-550c] .c-load-tick {
+  color: var(--c-text-faint);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  transition: color 0.25s linear, text-shadow 0.25s linear;
+}
+
+html[data-550c] .c-load-tick.is-on {
+  color: var(--c-amber);
+  text-shadow: var(--c-glow-text);
+}
+
+/* ── the load ladder ─────────────────────────────────────────────────────── */
+
+/* As the fader climbs the whole control heats up — reading, fill, thumb and
+   trigger together — and the top detent pulses. The pulse is on the READING,
+   because that is where the eye is while dragging. */
+html[data-550c] .c-load-panel[data-550c-level='low'] .c-load-read,
+html[data-550c] .c-load-panel[data-550c-level='low'] .c-load-thumb {
+  color: var(--c-cyan);
+  background-color: var(--c-cyan);
+  text-shadow: 0 0 6px currentColor;
+}
+
+html[data-550c] .c-load-panel[data-550c-level='mid'] .c-load-read,
+html[data-550c] .c-load-panel[data-550c-level='mid'] .c-load-thumb {
+  color: var(--c-amber);
+  background-color: var(--c-amber);
+}
+
+html[data-550c] .c-load-panel[data-550c-level='high'] .c-load-read,
+html[data-550c] .c-load-panel[data-550c-level='high'] .c-load-thumb {
+  color: var(--c-amber-b);
+  background-color: var(--c-amber-b);
+  text-shadow: var(--c-glow-strong);
+}
+
+html[data-550c] .c-load-panel[data-550c-level='max'] .c-load-read,
+html[data-550c] .c-load-panel[data-550c-level='max'] .c-load-thumb {
+  color: var(--c-red);
+  background-color: var(--c-red);
+}
+
+html[data-550c] .c-load-panel[data-550c-level='max'] .c-load-read {
+  text-shadow: 0 0 10px currentColor;
+  animation: c-load-alarm 0.9s steps(1) infinite;
+}
+
+html[data-550c] .c-load-panel[data-550c-level='max'] .c-load-fill {
+  background: linear-gradient(90deg, var(--c-amber), var(--c-red));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--c-red) 60%, transparent);
+}
+
+/* The trigger carries the same ladder, one step cooler, so the control row shows
+   the load without opening anything. */
+html[data-550c] .c-rig-load[data-550c-level='low'] .c-load-now {
+  color: var(--c-cyan);
+}
+
+html[data-550c] .c-rig-load[data-550c-level='mid'] .c-load-now {
+  color: var(--c-amber);
+}
+
+html[data-550c] .c-rig-load[data-550c-level='high'] .c-load-now {
+  color: var(--c-amber-b);
+  text-shadow: var(--c-glow-text);
+}
+
+html[data-550c] .c-rig-load[data-550c-level='max'] .c-load-now {
+  color: var(--c-red);
+  text-shadow: 0 0 8px currentColor;
+  animation: c-load-alarm 0.9s steps(1) infinite;
+}
+
+@keyframes c-load-alarm {
   0%,
-  100% {
-    opacity: 0.85;
-    text-shadow: 0 0 5px rgba(var(--c-glow-rgb), 0.5);
-  }
-  50% {
+  55% {
     opacity: 1;
-    text-shadow: 0 0 11px rgba(var(--c-glow-rgb), 0.75);
+  }
+  55.01%,
+  100% {
+    opacity: 0.35;
   }
 }
 
-/* Its own switch, so the mark can be turned off without turning off the skin. */
-html[data-550c][data-550c-mark='off'] .c-dialog-mark {
+/* At full load the panel's own light goes hot, so the control reads as stressed
+   from the outside in. */
+html[data-550c] .c-load-panel[data-550c-level='max'] {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c-red) 55%, transparent), inset 0 0 26px rgba(var(--c-glow-rgb), 0.07),
+    0 12px 34px rgba(0, 0, 0, 0.62);
+}
+
+/* ── the effort picker the rheostat replaces ─────────────────────────────── */
+
+/* The harness offers reasoning effort inside the model dropdown. The rheostat
+   takes that over, so the dropdown's copy is hidden — two controls for one
+   setting is worse than either alone.
+
+   Hidden, never removed: the option buttons inside are exactly what the console
+   clicks to set the level for real, and a `display:none` button is still
+   clickable. The suffix on the model trigger goes too, because the rheostat now
+   states the level and saying it twice reads as two different settings.
+
+   layout-exempt: this rule hides one of the app's OWN nodes, which is a layout
+   property on a DSH element and therefore a genuine exception to this sheet's
+   rule. It is confined to the dialog box — the one region this pass is
+   authorised to restructure — and it is marked and counted by
+   test/layout-contract.test.mjs rather than buried inside a widened check. */
+html[data-550c] [data-550c-effort],
+html[data-550c] [class*='_7KE1Ra_triggerEffort'] {
+  display: none !important;
+}
+
+/* Its own switch, so the console can be turned off without turning off the skin. */
+html[data-550c][data-550c-mark='off'] .c-console-head,
+html[data-550c][data-550c-mark='off'] .c-rig-load {
   display: none;
 }
 
@@ -568,8 +939,11 @@ html[data-550c][data-550c-mark='off'] .c-dialog-mark {
   html[data-550c] .c-cursor::after,
   html[data-550c] .c-rec > s,
   html[data-550c] [data-composer-placeholder]::after,
-  html[data-550c] .c-dialog-line:not(.is-ready)::after,
-  html[data-550c] .c-dialog-mark[data-550c-state='settled'] .c-dialog-logo,
+  html[data-550c] .c-load-panel[data-550c-level='max'] .c-load-read,
+  html[data-550c] .c-rig-load[data-550c-level='max'] .c-load-now,
+  html[data-550c] .c-mark,
+  html[data-550c] .c-cell[data-lit='1'],
+  html[data-550c] .c-tps-rail::after,
   html[data-550c] :where([data-state='running'], [data-running])::after {
     animation: none;
   }
