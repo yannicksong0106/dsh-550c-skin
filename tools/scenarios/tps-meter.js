@@ -13,7 +13,9 @@
  * harness's own four-characters-per-token heuristic.
  */
 ;(() => {
-  const scroll = document.querySelector('[data-conversation-scroll]')
+  // The container the meter actually measures. NOT `[data-conversation-scroll]`:
+  // that one contains the composer, which is what made typing look like output.
+  const scroll = document.querySelector('[data-chat-flow]')
   const value = () => document.querySelector('.c-tps-value')?.textContent ?? null
   const fill = () => document.querySelector('.c-tps-fill')?.style.width ?? null
   const level = () => document.querySelector('.c-tps')?.getAttribute('data-550c-level') ?? null

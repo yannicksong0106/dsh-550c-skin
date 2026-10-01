@@ -360,12 +360,27 @@ function mountDialogConsole() {
 
   /* ── the throughput meter ──────────────────────────────────────────── */
 
-  const transcript = () => document.querySelector('[data-conversation-scroll]')
+  /**
+   * The conversation's own text — messages, and NOT the input.
+   *
+   * `[data-conversation-scroll]` is the tempting container and it is the wrong
+   * one: the composer sits INSIDE it (through `[data-composer-seat]`), so its
+   * text content includes whatever is being typed. Measuring it meant every
+   * keystroke read as output — the meter moved and the mark started loading
+   * before anything had been sent, which is exactly the bug that was reported.
+   *
+   * `[data-chat-flow]` holds the turns and excludes the composer entirely
+   * (verified by containment, not by assumption). There is deliberately NO
+   * fallback to the scroll container: a fallback would quietly restore the bug
+   * on any page where the flow is absent, and an absent flow means there is
+   * nothing to measure anyway.
+   */
+  const transcript = () => document.querySelector('[data-chat-flow]')
   /** Rolling (timestamp, cumulative characters) samples. */
   let samples = []
   let lastChars = 0
 
-  /** Count the transcript's visible characters — the thing that grows as text streams. */
+  /** Count the conversation's visible characters — what grows as text streams. */
   function transcriptChars() {
     const node = transcript()
     return node === null ? 0 : (node.textContent ?? '').length
@@ -399,14 +414,17 @@ function mountDialogConsole() {
    *   `[data-state="running"]`  a reasoning block is still open — which is what
    *                             covers the stretch BEFORE the first token lands,
    *                             when nothing is streaming yet
-   *   the measured output rate  the transcript is growing, which catches anything
-   *                             the two markers miss
+   *   the measured output rate  the conversation is growing, which catches
+   *                             anything the two markers miss
    *
    * The rate is held for a moment after it stops, so the mark does not flicker
-   * back to idle in the gaps between chunks.
+   * back to idle in the gaps between chunks — and it only counts when the growth
+   * is SUSTAINED. A single jump is what expanding a disclosure does to the flow's
+   * text, and one jump is not work; two ticks in a row is streaming.
    */
   const WORKING_MARKERS = ['[data-streaming]', '[data-state="running"]']
   let rateHoldUntil = 0
+  let growingStreak = 0
 
   function isWorking() {
     for (const selector of WORKING_MARKERS) {
@@ -439,14 +457,18 @@ function mountDialogConsole() {
     // throughput: reset the window instead of reporting nonsense.
     if (grown < 0) {
       samples = [{ at: now, chars: total }]
+      growingStreak = 0
       renderTps(0)
       renderWorking(isWorking())
       return
     }
     const rate = elapsed < 0.4 ? 0 : grown / elapsed
     const tps = rate / CHARS_PER_TOKEN
-    // Measured output counts as work, and keeps counting briefly after it stops.
-    if (tps > 0.5) rateHoldUntil = now + 1200
+    // Measured output counts as work only while it keeps happening, and keeps
+    // counting briefly after it stops.
+    if (tps > 0.5) growingStreak += 1
+    else growingStreak = 0
+    if (growingStreak >= 2) rateHoldUntil = now + 1200
     renderTps(tps)
     renderWorking(isWorking())
   }

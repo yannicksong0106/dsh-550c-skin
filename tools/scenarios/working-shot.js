@@ -13,7 +13,9 @@
   document.body.appendChild(marker)
 
   // A little output, so the throughput bar is not sitting at zero either.
-  const scroll = document.querySelector('[data-conversation-scroll]')
+  // The container the meter actually measures. NOT `[data-conversation-scroll]`:
+  // that one contains the composer, which is what made typing look like output.
+  const scroll = document.querySelector('[data-chat-flow]')
   if (scroll !== null) {
     const sink = document.createElement('div')
     sink.setAttribute('data-550c-shot-probe', '')

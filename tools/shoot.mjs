@@ -343,6 +343,31 @@ async function main() {
       return true
     }
 
+    /**
+     * Type into whatever is focused, through the browser's own input pipeline.
+     *
+     * Used to reproduce the reported bug faithfully: typing in the composer is
+     * what made the throughput meter move, and a synthetic `value` assignment
+     * would not have produced the same input events the app reacts to.
+     *
+     * @param selector - CSS selector for the field to focus first.
+     * @param text - the text to insert.
+     */
+    const typeInto = async (selector, text) => {
+      const focused = await evaluate(`(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (el === null) return false;
+        el.focus();
+        return document.activeElement === el || el.contains(document.activeElement);
+      })()`)
+      if (focused !== true) {
+        console.log(`type: could not focus ${selector}`)
+        return false
+      }
+      await cdp.send('Input.insertText', { text })
+      return true
+    }
+
     // A fresh browser-profile chains onboarding gates (beta notice → API key …),
     // each painting in front of the whole shell, so the skin cannot be seen —
     // and the plugin's own settings row does not exist — until they are gone.
@@ -386,6 +411,13 @@ async function main() {
     // A trusted click, after the scenario has captured its "before" state.
     if (typeof args.realclick === 'string') {
       await realClick(args.realclick)
+      if (after > 0) await sleep(after)
+    }
+
+    // Real typing, also after the "before" state has been captured.
+    if (typeof args.type === 'string') {
+      const target = typeof args['type-into'] === 'string' ? args['type-into'] : '[data-composer-input]'
+      await typeInto(target, args.type)
       if (after > 0) await sleep(after)
     }
 
