@@ -175,13 +175,19 @@ function mountDialogConsole() {
     mark.style.setProperty('--cols', String(rows[0].length))
     mark.replaceChildren()
     markCells.length = 0
+    let sequence = 0
     for (let row = 0; row < rows.length; row += 1) {
       for (let column = 0; column < rows[row].length; column += 1) {
         const cell = document.createElement('span')
         cell.className = 'c-cell'
-        // The column drives the shimmer's phase, so the mark pulses as a wave
-        // travelling across it rather than blinking as a block.
+        // Two phases, because the mark moves two ways:
+        //   `--col` drives the idle shimmer, a wave travelling ACROSS the mark;
+        //   `--seq` drives the loading rewrite, a sweep travelling in READING
+        //   order — which is what makes the working state look like the logo
+        //   being written out again rather than merely pulsing.
         cell.style.setProperty('--col', String(column))
+        cell.style.setProperty('--seq', String(sequence))
+        sequence += 1
         cell.dataset.on = rows[row][column] === '█' ? '1' : '0'
         mark.appendChild(cell)
         markCells.push(cell)
@@ -383,6 +389,42 @@ function mountDialogConsole() {
     tps.setAttribute('data-550c-level', rate >= TPS_FULL_SCALE * 0.7 ? 'hot' : rate >= TPS_FULL_SCALE * 0.3 ? 'busy' : 'idle')
   }
 
+  /**
+   * Is the agent working right now?
+   *
+   * Read from the app's own markers rather than guessed, and from more than one,
+   * because each covers a different part of a run:
+   *
+   *   `[data-streaming]`        the assistant's text is arriving right now
+   *   `[data-state="running"]`  a reasoning block is still open — which is what
+   *                             covers the stretch BEFORE the first token lands,
+   *                             when nothing is streaming yet
+   *   the measured output rate  the transcript is growing, which catches anything
+   *                             the two markers miss
+   *
+   * The rate is held for a moment after it stops, so the mark does not flicker
+   * back to idle in the gaps between chunks.
+   */
+  const WORKING_MARKERS = ['[data-streaming]', '[data-state="running"]']
+  let rateHoldUntil = 0
+
+  function isWorking() {
+    for (const selector of WORKING_MARKERS) {
+      if (document.querySelector(selector) !== null) return true
+    }
+    return Date.now() < rateHoldUntil
+  }
+
+  /** Paint the mark's working state, and the header's own readout with it. */
+  function renderWorking(working) {
+    if (working === (header.getAttribute('data-550c-working') !== null)) return
+    if (working) header.setAttribute('data-550c-working', '')
+    else header.removeAttribute('data-550c-working')
+    // The readout says what the mark is showing, so the state is legible as text
+    // too and not only as movement.
+    state.textContent = working ? 'RUNNING' : 'READY'
+  }
+
   function tickTps() {
     if (cancelled) return
     const now = Date.now()
@@ -398,10 +440,15 @@ function mountDialogConsole() {
     if (grown < 0) {
       samples = [{ at: now, chars: total }]
       renderTps(0)
+      renderWorking(isWorking())
       return
     }
     const rate = elapsed < 0.4 ? 0 : grown / elapsed
-    renderTps(rate / CHARS_PER_TOKEN)
+    const tps = rate / CHARS_PER_TOKEN
+    // Measured output counts as work, and keeps counting briefly after it stops.
+    if (tps > 0.5) rateHoldUntil = now + 1200
+    renderTps(tps)
+    renderWorking(isWorking())
   }
 
   // The meter is driven by observed growth, so it needs no cooperation from the

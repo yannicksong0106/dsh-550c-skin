@@ -499,6 +499,54 @@ html[data-550c] .c-cell[data-lit='1'] {
   }
 }
 
+/* ── THE MARK WHILE THE AGENT IS WORKING ─────────────────────────────────── */
+
+/* The logo loads. There is no separate spinner and no progress box: the mark
+   itself enters a loading state, which is the only honest way to show "this
+   machine is working" on a console whose identity IS this mark.
+
+   The sweep runs in READING order (`--seq`, not `--col`), so the light travels
+   the way the logotype was written — which reads as the logo being written out
+   again, on a loop. A wave across the columns would only look like the idle
+   shimmer moving faster, which is why the two use different phases.
+
+   Negative delays so the loop is already in flight on the first frame; and the
+   cells go dark at the tail rather than merely dimming, so the sweep has a head
+   and a tail and the direction is unmistakable. */
+html[data-550c] .c-console-head[data-550c-working] .c-cell[data-lit='1'] {
+  animation: c-mark-rewrite 1.35s linear infinite;
+  animation-delay: calc(var(--seq) * -22ms);
+}
+
+@keyframes c-mark-rewrite {
+  0% {
+    opacity: 1;
+    box-shadow: 0 0 11px rgba(var(--c-glow-rgb), 1);
+  }
+  45% {
+    opacity: 0.5;
+    box-shadow: 0 0 4px rgba(var(--c-glow-rgb), 0.4);
+  }
+  70%,
+  100% {
+    opacity: 0.14;
+    box-shadow: none;
+  }
+}
+
+/* The readout turns with it, so the working state is legible as text and not only
+   as movement. */
+html[data-550c] .c-console-head[data-550c-working] .c-console-state {
+  color: var(--c-amber-b);
+  text-shadow: 0 0 9px currentColor;
+}
+
+/* The breathing glow stops while working: it belongs to the resting state, and
+   two rhythms at once would muddy the sweep. */
+html[data-550c] .c-console-head[data-550c-working] .c-mark {
+  animation: none;
+}
+
 @keyframes c-mark-breathe {
   0%,
   100% {
@@ -866,6 +914,7 @@ html[data-550c][data-550c-mark='off'] .c-load {
   html[data-550c] .c-load-cell[data-lit='1'],
   html[data-550c] .c-mark,
   html[data-550c] .c-cell[data-lit='1'],
+  html[data-550c] .c-console-head[data-550c-working] .c-cell[data-lit='1'],
   html[data-550c] .c-tps-rail::after,
   html[data-550c] :where([data-state='running'], [data-running])::after {
     animation: none;
