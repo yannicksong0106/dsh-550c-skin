@@ -313,6 +313,36 @@ async function main() {
       return result.result?.value
     }
 
+    /**
+     * Click a real mouse, through the browser's own input pipeline.
+     *
+     * `element.click()` and hand-dispatched PointerEvents are both untrusted, and
+     * an untrusted event is one the page is free to ignore — which is exactly how
+     * a probe ends up reporting "the sidebar is broken" for the skinned AND the
+     * unskinned app. `Input.dispatchMouseEvent` goes in at the same place a
+     * physical mouse does, so the app cannot tell the difference.
+     *
+     * @param selector - CSS selector for the element to click.
+     */
+    const realClick = async (selector) => {
+      const point = await evaluate(`(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (el === null) return null;
+        el.scrollIntoView({ block: 'center' });
+        const rect = el.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      })()`)
+      if (point === null) {
+        console.log(`realclick: nothing matches ${selector}`)
+        return false
+      }
+      const at = { x: Math.round(point.x), y: Math.round(point.y), button: 'left', clickCount: 1 }
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...at, buttons: 0 })
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...at, buttons: 1 })
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...at, buttons: 0 })
+      return true
+    }
+
     // A fresh browser-profile chains onboarding gates (beta notice → API key …),
     // each painting in front of the whole shell, so the skin cannot be seen —
     // and the plugin's own settings row does not exist — until they are gone.
@@ -353,6 +383,12 @@ async function main() {
       if (after > 0) await sleep(after)
     }
 
+    // A trusted click, after the scenario has captured its "before" state.
+    if (typeof args.realclick === 'string') {
+      await realClick(args.realclick)
+      if (after > 0) await sleep(after)
+    }
+
     // A scenario that only reports has no reason to pay for a full-page raster.
     if (args['no-shot'] !== true) {
       const shot = await cdp.send('Page.captureScreenshot', {
@@ -364,8 +400,16 @@ async function main() {
     }
 
     let evaled = null
-    if (typeof args.eval === 'string') {
-      evaled = await evaluate(args.eval)
+    // `--evalfile` exists because passing a selector-bearing expression through a
+    // shell is a losing game: PowerShell 5.1 strips embedded double quotes when
+    // handing an argument to a native command, so `querySelector("[class*=x]")`
+    // arrives as a bare array literal and the page throws a syntax error that
+    // looks like a page bug. Reading the expression from a file removes the shell
+    // from the equation entirely.
+    const evalExpression =
+      typeof args.evalfile === 'string' ? readFileSync(resolve(root, args.evalfile), 'utf8') : args.eval
+    if (typeof evalExpression === 'string') {
+      evaled = await evaluate(evalExpression)
       console.log('--- eval ---')
       console.log(typeof evaled === 'string' ? evaled : JSON.stringify(evaled, null, 2))
     }
