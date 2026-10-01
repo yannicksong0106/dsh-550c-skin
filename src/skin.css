@@ -249,6 +249,48 @@ html[data-550c] :where([data-state='running'], [data-running], [class*='_running
   }
 }
 
+/* ── THE RUNNING STATUS: DELIBERATELY NO RULE ────────────────────────────── */
+
+/* `深度求索中，用时 41秒` is the app's own line, drawn while a turn is running.
+   It reads as a console readout because its COLOUR comes from the scheme — see
+   `--dsw-alias-label-deep-diving` in `src/palettes.js`. `.EvIC1a_running` sets
+   `color` from that token and rebinds the shared text shimmer to
+   `--dsw-alias-label-deep-diving-shimmer`, so owning the pair is the whole
+   treatment and the app supplies the sweep.
+
+   AN EARLIER PASS PAINTED OVER IT AND MADE IT WORSE. It set
+   `background-clip: text` with a gradient built from `--c-text-dim`, and
+   `color: transparent` to let the gradient show. That replaced a phosphor-coloured
+   line with a *grey* one that only brightened where the band passed — reported,
+   exactly, as "深度求索太没辨识度了". It also fought the app's own shimmer with a
+   second, differently-timed one. Tokens, not paint: the line was never the
+   problem, its colour was.
+
+   Nothing is added and nothing is resized, so the contract holds either way —
+   but the reason to prefer the token is that it is one value instead of a
+   gradient, a keyframe, a clip and a transparent-colour trick. */
+
+/* ── ELEVATED SURFACES ARE PANELS, NOT GLASS ─────────────────────────────── */
+
+/* DSH's menus and hover cards are translucent by design: they paint
+   `--dsw-menu-surface-fill` and then blur and saturate whatever sits behind them
+   (`blur(40px) saturate(150%)`). Over a console that reads as frosted plastic —
+   the milkiness is the blur pulling the page's colours up through the panel.
+
+   The fill itself is now the scheme's panel material, nearly opaque (see
+   `--dsw-menu-surface-fill` in `src/palettes.js`), which already leaves the
+   filter nothing to show. Turning it off as well is the honest statement of the
+   intent, and it is the cheaper frame: a full-screen backdrop filter is real work
+   on every open.
+
+   Declared on `body`, not on `html`, and for the same reason the ladder is:
+   DSH defines this token on `body`, and a custom property set on an ancestor is
+   shadowed by the descendant's own declaration. `html[data-550c] body` outranks
+   it; `html[data-550c]` alone would not. */
+html[data-550c] body {
+  --dsw-menu-backdrop-filter: none;
+}
+
 /* ── 7. SCROLLBARS AS RAILS ──────────────────────────────────────────────── */
 
 /* Appearance only. The scrollbar's THICKNESS is a layout property: the app's

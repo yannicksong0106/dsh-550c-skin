@@ -165,6 +165,51 @@ test('the skin tokens cover the CRT and the type stack', () => {
   }
 })
 
+test('the elevated surfaces and the activity label are owned by the skin', () => {
+  // These four are not colour preferences, they are the difference between the
+  // skin being finished and the app's own light-theme defaults showing through.
+  // Every one of them was missing until a live page was read back:
+  //
+  //   `--dsw-menu-surface-fill`            menus paint THIS, not `--dsw-specific-menu`
+  //   `--dsw-alias-menu-group-header-fill` the sticky heading inside a menu
+  //   `--dsw-alias-label-deep-diving`      the colour of `深度求索中`
+  //   `--dsw-linear-gradient-think`        the 思考 block's fade
+  //
+  // A menu that falls back to DSH's value gets `#f8f9fa94` — a near-white 58%
+  // wash — because the fill is translucent and its light half is what resolves
+  // when the dark marker is absent. Pinned here so it cannot go missing again.
+  const REQUIRED = [
+    '--dsw-menu-surface-fill',
+    '--dsw-alias-menu-group-header-fill',
+    '--dsw-alias-label-deep-diving',
+    '--dsw-alias-label-deep-diving-shimmer',
+    '--dsw-linear-gradient-think',
+    '--dsw-linear-think-select',
+  ]
+  for (const scheme of p.schemes) {
+    const ladder = p.tokensFor(scheme)
+    for (const name of REQUIRED) {
+      assert.ok(name in ladder, `${scheme.id}: ladder is missing ${name}`)
+      assert.ok(typeof ladder[name] === 'string' && ladder[name] !== '', `${scheme.id}: ${name} is empty`)
+      assert.ok(!/NaN|undefined/.test(ladder[name]), `${scheme.id}: ${name} is malformed: ${ladder[name]}`)
+    }
+    // The menu material has to be effectively opaque, or the backdrop filter it
+    // sits under shows the page through it and the panel goes milky again.
+    const fill = ladder['--dsw-menu-surface-fill'].match(/^rgba\(\d+,\d+,\d+,([\d.]+)\)$/)
+    assert.ok(fill !== null, `${scheme.id}: menu fill must be an rgba() tint, got ${ladder['--dsw-menu-surface-fill']}`)
+    assert.ok(Number(fill[1]) >= 0.9, `${scheme.id}: menu fill is only ${fill[1]} opaque; the panel will read as glass`)
+
+    // The activity label is the accent and its sweep is the bright accent, which
+    // is what makes the running line read as this machine rather than as DSH's blue.
+    assert.equal(ladder['--dsw-alias-label-deep-diving'], scheme.accent, `${scheme.id}: activity label must be the accent`)
+    assert.equal(
+      ladder['--dsw-alias-label-deep-diving-shimmer'],
+      scheme.accentBright,
+      `${scheme.id}: activity sweep must be the bright accent`,
+    )
+  }
+})
+
 test('schemeOfTheme maps only this plugin ids', () => {
   assert.equal(p.schemeOfTheme('550c-amber').id, 'amber')
   assert.equal(p.schemeOfTheme('dark'), null)

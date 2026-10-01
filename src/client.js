@@ -290,6 +290,9 @@ let live = null
 /** The body attribute selecting DSH's own dark base palette. */
 const DARK_ATTRIBUTE = 'data-ds-dark-theme'
 
+/** Re-asserts the dark marker while the skin is on; see `holdDarkMode`. */
+let darkGuard = null
+
 /** The theme service, kept for handing dark mode back correctly on teardown. */
 let themeService = null
 
@@ -309,6 +312,9 @@ function activate(scheme) {
     debug('activate: refresh', scheme.id)
     applySkinTokens(scheme)
     applyLadder(scheme)
+    // Idempotent: re-asserts the marker and only installs the guard if it is
+    // missing, so a refresh cannot leave dark mode unheld.
+    holdDarkMode()
     return
   }
   debug('activate', scheme.id)
@@ -320,7 +326,7 @@ function activate(scheme) {
   applyEffectAttributes()
   ensureSkinStyle()
   applyLadder(scheme)
-  setDarkMode(true)
+  holdDarkMode()
 
   live = {
     scheme: scheme,
@@ -390,6 +396,55 @@ function setDarkMode(dark) {
   else document.body.removeAttribute(DARK_ATTRIBUTE)
 }
 
+/**
+ * Hold the dark marker down while the skin is on.
+ *
+ * `setDarkMode` writes the two things the presenter owns — the root
+ * `color-scheme` and `body[data-ds-dark-theme]` — and the presenter takes them
+ * back on its next apply, exactly as it does with an inline token ladder. The
+ * tokens escaped that by moving into a stylesheet (see `applyLadder`); the dark
+ * marker cannot, because it is an ATTRIBUTE and no stylesheet can set one.
+ *
+ * It matters more than it looks. DSH declares 213 custom properties ONLY under
+ * `body[data-ds-dark-theme]`. With the marker missing, every one of them that
+ * this ladder does not itself declare falls back to its light value — which is
+ * how the menu fill became a near-white wash (`#f8f9fa94`) and the reasoning
+ * block's fade became white. Owning a handful of extra tokens would patch the
+ * symptoms one at a time; keeping the marker on fixes the class.
+ *
+ * The observer writes only when the value is actually wrong, so it cannot spin
+ * on its own writes. It is released in `deactivate`, which is what lets a
+ * light-preferring user get a light UI back when they switch the skin off.
+ */
+function holdDarkMode() {
+  setDarkMode(true)
+  if (darkGuard !== null) return
+  const assert = () => {
+    // Only while the skin is live: after teardown the presenter owns this again.
+    if (live === null) return
+    if (document.body !== null && !document.body.hasAttribute(DARK_ATTRIBUTE)) {
+      document.body.setAttribute(DARK_ATTRIBUTE, '')
+    }
+    if (document.documentElement.style.colorScheme !== 'dark') {
+      document.documentElement.style.colorScheme = 'dark'
+    }
+  }
+  darkGuard = new MutationObserver(assert)
+  // The presenter rewrites the root's inline style, and removes the body
+  // attribute; both are watched, and both are re-asserted above.
+  darkGuard.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
+  if (document.body !== null) {
+    darkGuard.observe(document.body, { attributes: true, attributeFilter: [DARK_ATTRIBUTE] })
+  }
+}
+
+/** Stop holding the marker down; the caller decides what to hand back. */
+function releaseDarkMode() {
+  if (darkGuard === null) return
+  darkGuard.disconnect()
+  darkGuard = null
+}
+
 function deactivate() {
   if (live === null) return
   debug('deactivate', live.scheme.id)
@@ -403,7 +458,9 @@ function deactivate() {
   removeLadder()
   document.documentElement.removeAttribute(ATTR.skin)
   // Hand the palette back to whatever the theme service is now resolving, which
-  // is what the presenter would have written had this skin never existed.
+  // is what the presenter would have written had this skin never existed. The
+  // guard has to go first, or it would re-assert dark over the handover.
+  releaseDarkMode()
   const active = themeService === null ? null : themeService.getTheme().active
   if (active !== null) setDarkMode(active.colorScheme === 'dark')
 }

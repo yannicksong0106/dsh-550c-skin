@@ -8,7 +8,7 @@
 ## 一条命令
 
 ```sh
-npm test          # 12 项，纯 node，不需要浏览器
+npm test          # 17 项，纯 node，不需要浏览器
 npm run geometry  # 需要跑着的 dsh web：开关皮肤各量一次几何并比对
 ```
 
@@ -185,6 +185,88 @@ const dead = () => cancelled || !root.isConnected   // ← 错的
 输入框在插件 `apply()` 时**还没渲染**，所以 `dead()` 一开始就为真，等待循环瞬间烧完重试次数并提前
 `return`，动画永远不启动——而且没有任何报错，表现只是「标志是空的」。
 修法是把取消判据收窄成只管**销毁**：连通性交给 MutationObserver 负责。
+
+## 深色标记：一个属性带来的 81 个 token
+
+这一条是**读回真实页面**才发现的，静态检查全绿也没用。
+
+皮肤注册主题时写的是 `colorScheme: 'dark'`，但运行时实测：
+
+```
+darkAttr      : { body: false, html: false }
+colorScheme   : light
+thinkGradient : linear-gradient(180deg, #fff 20.19%, #fff0 100%)   ← 浅色值
+```
+
+原因和 token 阶梯是同一个，只是这次躲不掉：`ThemePresenter` 每次 apply 都会收走它上次写的东西，
+而深色标记是**属性**——**样式表设不了属性**。token 靠搬进样式表躲过了回弹，深色标记没躲过。
+
+代价比看起来大。DSH 有 **213 个自定义属性只在 `body[data-ds-dark-theme]` 下声明**，标记一丢，
+凡是本阶梯没有自己声明的，全部退回浅色值。审计脚本按 token 名对比过：
+
+```
+dark-only tokens declared by DSH: 213
+  skin covers: 132
+  skin MISSES: 81
+```
+
+修法不是逐个补 81 个 token，而是**把标记按住**：`holdDarkMode()` 在皮肤开启期间用
+MutationObserver 盯着 `<html>` 的 `style` 和 `<body>` 的这个属性，一旦被收走就重新写上；
+只在值真的不对时写，所以不会自己触发自己。关闭皮肤时先释放守卫再交还，浅色用户才能拿回浅色。
+
+实测（同一页面，改前 → 改后）：
+
+| 读点 | 改前 | 改后 |
+|---|---|---|
+| `body[data-ds-dark-theme]` | `false` | `true` |
+| `color-scheme` | `light` | `dark` |
+| `--dsw-menu-surface-fill` | `#f8f9fa94`（近白 58%） | `rgba(26,26,26,0.97)` |
+| `--dsw-menu-backdrop-filter` | `blur(40px) saturate(150%)` | `none` |
+| `--dsw-linear-gradient-think` | `#fff` 起头 | `#010101` 起头 |
+
+### 菜单：两个 token，不是一个
+
+菜单发白还有第二个原因，而且是独立的。`MenuSurface.module.css` 给锚定菜单上色用的是
+**`--dsw-menu-surface-fill`**，不是 `--dsw-specific-menu`——后者是给大面板用的。皮肤接管了后者、
+漏了前者，于是菜单拿到 DSH 的**半透明**填充，再被 40px 模糊 + 150% 饱和度一搅，就成了奶灰色玻璃。
+
+所以菜单的修法有两半：**阶梯里补上 `--dsw-menu-surface-fill`**（约 0.97 不透明的控制台面板色，
+模糊也就没有东西可透了），**外加关掉 `--dsw-menu-backdrop-filter`**（控制台是面板不是玻璃，
+而且全屏背景模糊每次开菜单都是实打实的开销）。
+
+回归测试钉住了这几项：`test/palette.test.mjs` 断言这些 token 存在、菜单填充 ≥0.9 不透明、
+活动标签等于主色、扫光等于亮主色。
+
+### 状态行：一个不存在的类
+
+上一轮为 `深度求索中` 写的规则挂在 `[class*='_turnStatus']` 上。**这个类不存在**——
+DSH 里唯一带 `turnStatus` 的是个 JS 函数 `locationTurnStatus`。规则一直没匹配到任何东西。
+
+真实结构是 `div[data-chat-running]`（`RunningStatus` 组件），可见文字在 app 自己的 `TextShimmer` 里：
+
+```jsx
+<div className={ChatView_module.running} data-chat-running>
+  <span className={visuallyHidden} role="status">深度求索中</span>
+  <span className={runningDivider} />
+  <span className={runningContent}>
+    <RunningWhaleTail />
+    <TextShimmer active>{深度求索中，用时 41秒 ···}</TextShimmer>
+  </span>
+</div>
+```
+
+`ChatView_module.running` 自己就写着 `color: var(--dsw-alias-label-deep-diving)`，并把共享扫光
+重绑到 `--dsw-alias-label-deep-diving-shimmer`。**所以只要接管这两个 token，整条线就是控制台的磷光，
+动效由 app 自己提供**——不需要 `background-clip`、不需要自绘渐变。
+
+之前那版恰恰画蛇添足：用 `--c-text-dim` 搭了个渐变、`color: transparent` 让渐变透出来，
+把一条本该是磷光色的线做成了**灰色**、只在光带经过时亮一下。用户的反馈很准确：「太没辨识度了」。
+
+实测（`tools/scenarios/status-readout.js`，白方案）：
+
+```
+accent: "#c9c9c9"   activity: "#c9c9c9"   sweep: "#ffffff"   verdict: PASS
+```
 
 ## 截图
 

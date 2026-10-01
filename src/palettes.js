@@ -28,9 +28,18 @@
  *
  * Two constraints from the host side (`dsh-client-ui-layout`'s ThemePresenter):
  * a registered theme's `tokens` is a flat `name → string` map — NOT the
- * `{light, dark}` pair shape `theme.overrideTokens` wants — and every entry is
- * written as an INLINE custom property on `<body>`, which is why these values
- * win over the stylesheet-defined dark ladder without any `!important`.
+ * `{light, dark}` pair shape `theme.overrideTokens` wants — and the presenter
+ * writes its own snapshot to `<body>` on every apply, removing whatever it
+ * recorded last time. The ladder therefore does NOT ride on the theme service:
+ * it is written as a stylesheet rule, `html[data-550c] body { … }`, which is why
+ * these values outrank the app's own `body` declarations and nothing can retract
+ * them. See `applyLadder` in `src/client.js` for the full reasoning.
+ *
+ * The dark marker (`body[data-ds-dark-theme]`) is the one thing that CANNOT be
+ * done this way, because it is an attribute and no stylesheet can set one. It is
+ * re-asserted by `holdDarkMode` instead, and that matters here: DSH declares 213
+ * custom properties only under that attribute, so with it missing every token
+ * this ladder does not itself declare falls back to its light value.
  */
 
 /** `#rrggbb` → `[r, g, b]`; tolerant of `#rgb` and any case. */
@@ -234,6 +243,24 @@ function tokensFor(scheme) {
     '--dsw-specific-input-major': bgWin,
     '--dsw-specific-login-input': sidebar,
     '--dsw-specific-menu': chrome,
+    // THE MENU MATERIAL IS A DIFFERENT TOKEN FROM `--dsw-specific-menu`, and
+    // missing it is what made every dropdown read as frosted glass.
+    //
+    // `MenuSurface.module.css` paints the anchored menus — the model picker, the
+    // permission picker, 打开方式 — with `--dsw-menu-surface-fill`, not with
+    // `--dsw-specific-menu`; that one is for the larger panels. DSH ships the
+    // fill as a *translucent* tint (`#f8f9fa94` light, `#43454a73` dark) because
+    // its own menus are meant to blur what is behind them, so leaving it unmapped
+    // put a near-white 58% wash over the console and let `blur(40px)
+    // saturate(150%)` turn it milky.
+    //
+    // Nearly opaque, because a console panel is a surface and not a window: at
+    // 0.97 the backdrop filter has nothing left to show through, so the same
+    // value also neutralises the blur without having to fight the filter token.
+    '--dsw-menu-surface-fill': alpha(chrome, 0.97),
+    // The sticky group heading inside a scrolling menu: it has to occlude the
+    // rows sliding under it, so it is the same material as the menu itself.
+    '--dsw-alias-menu-group-header-fill': alpha(chrome, 0.97),
     '--dsw-specific-selector': chrome,
     '--dsw-specific-tip': chrome,
     '--dsw-specific-sidebar-nav-item-hover': alpha(accent, 0.08),
@@ -290,6 +317,33 @@ function tokensFor(scheme) {
     '--dsw-alias-button-tool-bar-fill': alpha(accent, 0.14),
     '--dsw-alias-button-tool-bar-fill-invisible': alpha(accent, 0.06),
     '--dsw-alias-button-tool-bar-hover': alpha(accent, 0.24),
+
+    /* ── activity: the running readout, and the think fade ────────────────
+       The app already shimmers its running line; it just shimmers it in DSH's
+       own blue. `.EvIC1a_running` sets `color: var(--dsw-alias-label-deep-diving)`
+       and rebinds the shared sweep to `--dsw-alias-label-deep-diving-shimmer`, so
+       owning those two tokens makes `深度求索中` read out in the scheme's phosphor
+       with a brighter sweep — using the app's own mechanism rather than painting
+       over the text with a gradient of our own.
+
+       These are also dark-only tokens in DSH's sheets, so while the dark marker
+       was missing they were resolving to their light values as well. */
+    '--dsw-alias-label-deep-diving': accent,
+    '--dsw-alias-label-deep-diving-shimmer': accentBright,
+    // The shared overlay for every other shimmering row (tool titles, etc.).
+    '--dsw-alias-label-shimmer': alpha(accentBright, 0.5),
+
+    /* The reasoning block's own fade, top-down, into whatever surface it sits
+       on. DSH's light value is white and its dark value is a neutral `#151517`;
+       both are wrong for a console, and this was one of the visible symptoms of
+       the missing dark marker — a white wash at the top of the 思考 row. */
+    '--dsw-linear-gradient-think': 'linear-gradient(180deg, ' + bg + ' 20.19%, ' + alpha(bg, 0) + ' 100%)',
+    '--dsw-linear-think-select':
+      'linear-gradient(180deg, ' +
+      mix(bg, accent, 0.06) +
+      ' 20.19%, ' +
+      alpha(mix(bg, accent, 0.06), 0) +
+      ' 100%)',
 
     /* ── borders ──────────────────────────────────────────────────────────
        Deliberately close to invisible.

@@ -77,7 +77,18 @@ function collectClassNames() {
   const names = new Set()
   for (const file of files) {
     const source = readFileSync(file, 'utf8')
-    for (const match of source.matchAll(/\.([A-Za-z0-9_+-]+_[A-Za-z][A-Za-z0-9_-]*)/g)) {
+    // A CSS-module name is `_<local>_<hash>` (sometimes with a further `_<line>`),
+    // so the requirement is "an underscore-joined token", not "a token whose hash
+    // begins with a letter".
+    //
+    // The earlier pattern demanded a letter right after the hash separator, and
+    // that silently stopped matching when a DSH build produced
+    // `_shiki_7gxqk_93` — hash starting with a DIGIT. The class was there in the
+    // stylesheet the whole time; only the extractor could not see it, and the
+    // failure surfaced as "the skin's `_shiki` selector matches nothing DSH
+    // renders", which is exactly the wrong conclusion. Digits are allowed
+    // anywhere in the token now.
+    for (const match of source.matchAll(/\.([_A-Za-z][-_A-Za-z0-9]*_[_A-Za-z0-9-]+)/g)) {
       names.add(match[1])
     }
   }
