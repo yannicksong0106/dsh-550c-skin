@@ -268,6 +268,62 @@ DSH 里唯一带 `turnStatus` 的是个 JS 函数 `locationTurnStatus`。规则�
 accent: "#c9c9c9"   activity: "#c9c9c9"   sweep: "#ffffff"   verdict: PASS
 ```
 
+## 表头 TPS：两个源，一个数
+
+表头原来自己算：测 `[data-chat-flow]` 的字符增长、除以 4、按 2.5 秒滑窗平均。它和输入框下面那行
+（`8 轮 15 步 · 234 tok/s`）差一个数量级，用户报了两次。
+
+实测一轮真实运行，找出两个原因，都是**测量对象**的问题：
+
+```
+采样 40 次（每 500ms 一次）
+  正在流式的窗口        12 / 39
+  流式期间字符增长      509 chars/s
+  app 报的速率          235 ~ 237 tok/s
+  表头同时显示的        41.1 / 62.0 / 19.2 / 15.0 / 18.9 / 17.2
+```
+
+1. **除数不对。** `4 字符/token` 是 `dsh-token-meter` 给**上下文定价**用的启发式，按英文/JSON 调的。
+   这里实测约 **2.2 字符/token**（509 ÷ 235），中文占多数时它必然低估一半以上。
+2. **被等待时间稀释。** 滑窗按**墙上时钟**平均，于是等 provider 的每一秒（工具调用、重试、首 token 之前）
+   都算进分母。39 个窗口里只有 12 个在流式，读数因此掉到 40-60。
+
+还有一次更彻底的采样，说明**这两个数根本不是同一个量**：
+
+```
+3 秒内，running=true、streaming=false
+  flow  +0 字符    think  +0 字符    scroll  +0 字符    body  +0 字符
+  app 仍然报 234 tok/s
+```
+
+app 那个数是 `decodeTokens / decodeMs`，是**整会话的累计平均**（标签里就写着 `8 轮 15 步`）——
+什么都不产出的时候它照样是 234。所以「谁更准」这个问题本身问错了：**两个都不是「此刻多快」**。
+
+### 现在的规则
+
+| 状态 | 表头显示 | 理由 |
+|---|---|---|
+| 回合进行中 | **app 自己的数**（读 `[data-composer-stats]`） | 两处不可能再不一致；`tok/s` 这个单位在中英两种语言包里都一样，所以按单位匹配是安全的 |
+| 回合结束 | `--`、空条、idle | 会话平均不是「此刻」，一条 READY 下面挂着 60% 满的 busy 条，看起来就是机器还在干活 |
+| app 那行不在 | 增长率估算，**前缀 `~`** | 估算绝不冒充测量 |
+
+**工作态只由实测增长和 app 的标记驱动，绝不用 app 那个数**——它是会话平均，喂进去会让标志永远停在加载态。
+`[data-chat-running]` 现在也进了标记列表：它是整个回合都在的那一行，覆盖「首 token 之前」和「工具在跑」的空档。
+
+实测（`tools/scenarios/tps-meter.js`，注入 app 自己的回合标记）：
+
+```
+appRate : 243
+
+resting     value "--"     fill 0%     level idle   state READY   working false
+running     value "243.0"  fill 60.8%  level busy   state RUNNING working true
+settled     value "--"     fill 0%     level idle   state READY   working false
+
+checks: 6/6 PASS   verdict: PASS
+```
+
+另外那次真实运行里的对照：app 报 242，表头显示 `242.0`，**24/24 帧完全一致**。
+
 ## 截图
 
 `tools/shoot.mjs` 通过 DevTools 协议驱动真实浏览器，可以做到普通 `--screenshot` 做不到的事：

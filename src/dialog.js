@@ -51,17 +51,37 @@
  * app's option button, which is the only route a third-party plugin has (there
  * is no service for model or effort selection).
  *
- * THE TPS READING
+ * THE TPS READING: TWO SOURCES, ONE NUMBER
  *
- * Measured, not decorative. It samples how fast the transcript's text is
- * actually growing and converts with the harness's own density heuristic (four
- * characters per token, the same constant `dsh-token-meter` prices text with).
+ * The figure shown is the APP'S OWN, read back out of `[data-composer-stats]` —
+ * the same `234 tok/s` the session row under the composer prints. Two numbers for
+ * one quantity is worse than either alone, and the header's estimate disagreed
+ * with that row by an order of magnitude, which is what got reported.
  *
- * The provider's reported `outputTokens` is NOT the right source for a live bar:
- * usage settles once per attempt, so a bar driven by it would jump in steps
- * rather than move while a long answer streams. Rendered growth is continuous,
- * which is what a throughput meter is for. The figure is labelled TPS and is an
- * estimate of output rate — the docs say so too.
+ * The estimate is still computed, for two reasons: it drives the WORKING state
+ * (the app's figure is a session average and stays high while nothing is being
+ * written, so it must never be read as "busy now"), and it is what the header
+ * falls back to when the app's readout is not on screen. When it is the one being
+ * shown it is prefixed `~`, so an estimate never passes for a measurement.
+ *
+ * Why the estimate could never have matched on its own, measured on a real turn:
+ *
+ *   - it divided by 4 characters per token, the constant `dsh-token-meter` prices
+ *     CONTEXT with. That is a pricing heuristic tuned for English/JSON, and the
+ *     real density here measured ~2.2 characters per token for CJK-heavy output;
+ *   - it averaged over wall-clock time, so every second spent waiting for the
+ *     provider — a tool call, a retry, the gap before the first token — diluted
+ *     the reading. Over a sampled turn only 12 of 39 half-second windows were
+ *     streaming at all, and the meter sat at 41-62 while the app reported 235.
+ *
+ * The app's own figure is `decodeTokens / decodeMs`: real tokens over decode time
+ * only, with TTFT and waiting excluded. It is the better number, and it is the
+ * one already on screen.
+ *
+ * It is a SESSION figure though, so it is only shown while a turn is actually in
+ * flight; at rest the gauge goes back to `--` and an empty rail. Otherwise the
+ * header sat at `243.0 / busy` under a READY readout after a turn had failed,
+ * which looks exactly like a machine that is still working.
  */
 
 /* ── the mark, as block glyphs ───────────────────────────────────────────── */
@@ -91,14 +111,23 @@ const LOGO_STEP_MS = 14
 
 /* ── the throughput meter ────────────────────────────────────────────────── */
 
-/** The harness's own text density: four characters per token. */
+/** The harness's own text density for pricing context: four characters per token. */
 const CHARS_PER_TOKEN = 4
 /** How much output history the rate is averaged over. */
 const RATE_WINDOW_MS = 2500
 /** Sampling period for the meter. */
 const RATE_TICK_MS = 250
-/** The rate that fills the bar completely, in tokens per second. */
-const TPS_FULL_SCALE = 120
+/**
+ * The rate that fills the bar completely, in tokens per second.
+ *
+ * Sized for the app's own figure, which is what the header normally shows: a
+ * session sits around 200-320 tok/s, so a 120 scale would peg the bar and stop
+ * carrying information. At 400 the common case reads as a half-to-four-fifths
+ * gauge, which is a reading rather than an alarm.
+ */
+const TPS_FULL_SCALE = 400
+/** Where the app prints its own throughput, next to the turn and step counts. */
+const STATS_SELECTOR = '[data-composer-stats]'
 
 /* ── the rheostat ────────────────────────────────────────────────────────── */
 
@@ -387,20 +416,48 @@ function mountDialogConsole() {
   }
 
   /**
+   * The app's own throughput, read from the session row it already prints.
+   *
+   * The row is `[data-composer-stats]` — a data attribute, not one of the hashed
+   * class names, so it survives a rebuild. Its label is
+   * `8 轮 15 步 · 234 tok/s`, and the unit is `tok/s` in every locale DSH ships
+   * (checked against both the zh and en catalogues), so matching on the unit
+   * rather than on the surrounding words is safe to localise against.
+   *
+   * Returns null when the row is absent — the user can turn that readout off in
+   * settings, and a console should say "unknown" rather than invent a number.
+   *
+   * @returns {number|null} tokens per second, or null if the app is not showing one.
+   */
+  function appThroughput() {
+    const host = document.querySelector(STATS_SELECTOR)
+    if (host === null) return null
+    const button = host.querySelector('button') ?? host
+    const label = button.getAttribute('aria-label') ?? button.textContent ?? ''
+    const match = label.match(/([\d.]+)\s*tok\/s/)
+    return match === null ? null : Number(match[1])
+  }
+
+  /**
    * Paint the meter for one rate.
    *
    * The parameter is named `rate`, not `tpsValue`: the element above is
    * `tpsValue`, and a parameter of the same name shadowed it — so the write went
    * onto a number primitive and was silently discarded. The bar kept working
    * (its element was not shadowed), which is exactly how that bug hides.
+   *
+   * `estimated` is carried into the text as a `~` rather than left to the
+   * reader's assumption: the two sources are not the same measurement and must
+   * not look like the same measurement.
    */
-  function renderTps(rate) {
+  function renderTps(rate, estimated) {
     const fraction = Math.max(0, Math.min(1, rate / TPS_FULL_SCALE))
     // The rail is a RATE gauge, not a progress bar: the fill is how fast the
     // machine is writing right now, so it falls back on its own when output
     // stops. A short transition keeps it from looking like a level that jumps.
     tpsFill.style.width = (fraction * 100).toFixed(1) + '%'
-    tpsValue.textContent = rate < 0.05 ? '--' : rate.toFixed(1)
+    tpsValue.textContent = rate < 0.05 ? '--' : (estimated ? '~' : '') + rate.toFixed(1)
+    tps.setAttribute('data-550c-source', estimated ? 'estimate' : 'app')
     tps.setAttribute('data-550c-level', rate >= TPS_FULL_SCALE * 0.7 ? 'hot' : rate >= TPS_FULL_SCALE * 0.3 ? 'busy' : 'idle')
   }
 
@@ -410,10 +467,13 @@ function mountDialogConsole() {
    * Read from the app's own markers rather than guessed, and from more than one,
    * because each covers a different part of a run:
    *
+   *   `[data-chat-running]`     a turn is in flight — the row that prints
+   *                             `深度求索中，用时 41秒`. Present for the WHOLE turn,
+   *                             including the phases before any text arrives and
+   *                             the gaps while a tool runs, which is why it is
+   *                             the first marker here.
    *   `[data-streaming]`        the assistant's text is arriving right now
-   *   `[data-state="running"]`  a reasoning block is still open — which is what
-   *                             covers the stretch BEFORE the first token lands,
-   *                             when nothing is streaming yet
+   *   `[data-state="running"]`  a reasoning block is still open
    *   the measured output rate  the conversation is growing, which catches
    *                             anything the two markers miss
    *
@@ -422,7 +482,7 @@ function mountDialogConsole() {
    * is SUSTAINED. A single jump is what expanding a disclosure does to the flow's
    * text, and one jump is not work; two ticks in a row is streaming.
    */
-  const WORKING_MARKERS = ['[data-streaming]', '[data-state="running"]']
+  const WORKING_MARKERS = ['[data-chat-running]', '[data-streaming]', '[data-state="running"]']
   let rateHoldUntil = 0
   let growingStreak = 0
 
@@ -458,19 +518,38 @@ function mountDialogConsole() {
     if (grown < 0) {
       samples = [{ at: now, chars: total }]
       growingStreak = 0
-      renderTps(0)
+      // The transcript shrank, so the estimate has no window to stand on; the
+      // app's figure is still readable, and it is the one the header prefers.
+      const reset = appThroughput()
+      renderTps(reset === null ? 0 : reset, reset === null)
       renderWorking(isWorking())
       return
     }
     const rate = elapsed < 0.4 ? 0 : grown / elapsed
-    const tps = rate / CHARS_PER_TOKEN
-    // Measured output counts as work only while it keeps happening, and keeps
-    // counting briefly after it stops.
-    if (tps > 0.5) growingStreak += 1
+    const measured = rate / CHARS_PER_TOKEN
+    // WORKING IS DRIVEN BY MEASURED GROWTH, NEVER BY THE APP'S FIGURE. That
+    // figure is a session average: it reads ~235 tok/s while the machine is
+    // writing nothing at all (measured: 3 seconds of a running turn with zero
+    // characters appended anywhere in the DOM, and the app still reporting 234).
+    // Feeding it into this counter would pin the mark in its working state for
+    // the whole session.
+    if (measured > 0.5) growingStreak += 1
     else growingStreak = 0
     if (growingStreak >= 2) rateHoldUntil = now + 1200
-    renderTps(tps)
-    renderWorking(isWorking())
+
+    // ...but the NUMBER prefers the app's, so the header and the session row
+    // cannot disagree. The estimate is only shown when there is nothing to read.
+    //
+    // AND NOTHING IS SHOWN WHEN NOTHING IS RUNNING. The app's figure is a SESSION
+    // average: it keeps reading ~243 tok/s long after a turn has finished — and
+    // after one that failed. Left on the gauge it drew a 60%-full, "busy"-coloured
+    // bar under a header that said READY, which reads as a machine still working.
+    // A rate gauge has to fall to rest when the rate is not being taken.
+    const working = isWorking()
+    const reported = appThroughput()
+    if (!working) renderTps(0, false)
+    else renderTps(reported === null ? measured : reported, reported === null)
+    renderWorking(working)
   }
 
   // The meter is driven by observed growth, so it needs no cooperation from the
