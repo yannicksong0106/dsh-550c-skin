@@ -60,57 +60,26 @@ html[data-550c] :where([class*='_sectionLabel'])::before {
 
 /* ── 2. SURFACES ─────────────────────────────────────────────────────────── */
 
-/* A CRT has no rounded plastic. Circles must survive — avatars, status dots and
-   the send button are drawn round, and squaring them reads as broken rather
-   than retro — so the square-corner pass is limited to boxy controls. */
-html[data-550c] :where(button, [role='button'], [role='tab'], input, textarea, select, [role='dialog'], [role='menu'], [role='listbox']) {
-  border-radius: 2px;
-}
+/* NOTHING HERE RESHAPES A BOX, AND NOTHING HERE DRAWS ONE.
 
-html[data-550c] :where([class*='_card'], [class*='_panel'], [class*='_bubble'], [class*='_popover'], [class*='_tooltip'], [class*='_toast'], [class*='_input'], [class*='_menu']) {
-  border-radius: 2px;
-}
+   Two earlier passes did, and both were wrong in the same way — they piled
+   decoration onto the app instead of recolouring it:
 
-/* DSH's raised surfaces get the splash's own panel treatment: a phosphor rule
-   and a faint inward bloom instead of a drop shadow, because a CRT does not
-   cast one.
+   1. A global `border-radius: 2px` squared off every control. DSH's own design
+      is soft and round; forcing its corners square made the skin look like a
+      different program bolted on, and it is what "板正" actually was.
+   2. Every card, bubble, popover, menu, tooltip, toast and dialog got a 1px
+      phosphor ring AND eight one-pixel corner brackets. On a page like the
+      agent-preset list that is dozens of hard rectangles and hundreds of
+      bracket segments — a lot of ink saying nothing. A machine console is
+      allowed to be beautiful, but not by accumulation.
 
-   The rule is an INSET BOX-SHADOW, never a border. A border is part of the box
-   model: adding one grows the element by its width on both axes and pushes
-   everything around it, which this layer must not do. An inset shadow paints
-   the identical 1px line inside the box's own edge and contributes nothing to
-   layout. Verified by tools/scenarios/rects.js — see the geometry diff in
-   docs/VERIFICATION.md. */
-html[data-550c] :where([class*='_card'], [class*='_bubble'], [class*='_popover'], [class*='_menu'], [class*='_tooltip'], [class*='_toast'], [role='dialog']) {
-  box-shadow: inset 0 0 0 1px rgba(var(--c-glow-rgb), 0.24), inset 0 0 26px rgba(var(--c-glow-rgb), 0.035);
-}
-
-html[data-550c] :where([data-dockkit-surface], [class*='_surface']) {
-  box-shadow: inset 0 0 0 1px rgba(var(--c-glow-rgb), 0.16);
-}
-
-/* Instrument corners: eight one-pixel gradients — two per corner — which is the
-   only way to get crisp brackets that survive any box size and never fight the
-   element's own border. Painted by a pseudo-element, so a box of any kind can
-   carry them without a single layout consequence. */
-html[data-550c] :where([class*='_card'], [class*='_bubble'], [role='dialog']) {
-  position: relative;
-}
-
-html[data-550c] :where([class*='_card'], [class*='_bubble'], [role='dialog'])::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: linear-gradient(var(--c-amber) 0 0), linear-gradient(var(--c-amber) 0 0),
-    linear-gradient(var(--c-amber) 0 0), linear-gradient(var(--c-amber) 0 0),
-    linear-gradient(var(--c-amber) 0 0), linear-gradient(var(--c-amber) 0 0),
-    linear-gradient(var(--c-amber) 0 0), linear-gradient(var(--c-amber) 0 0);
-  background-size: 9px 1px, 1px 9px, 9px 1px, 1px 9px, 9px 1px, 1px 9px, 9px 1px, 1px 9px;
-  background-position: 0 0, 0 0, 100% 0, 100% 0, 0 100%, 0 100%, 100% 100%, 100% 100%;
-  background-repeat: no-repeat;
-  opacity: 0.8;
-}
+   So the app keeps its own radii, and raised surfaces are separated by TONE
+   alone. The faint ring that used to sit here was still drawing a rectangle
+   around every card, and a rectangle is a box however thin you make it — the
+   surface ladder already steps `bgBase` → `bgPanel` → `bgWin`, which is how the
+   splash separates its own panes. Nothing is added, so each surface keeps
+   whatever elevation the app already gave it. */
 
 /* ── 3. CONTROLS ─────────────────────────────────────────────────────────── */
 
@@ -132,10 +101,11 @@ html[data-550c] :focus-visible {
   box-shadow: 0 0 12px rgba(var(--c-glow-rgb), 0.35);
 }
 
-/* The new-session button is the console's power switch. Painted with an inset
-   ring rather than a border, for the reason in §2. */
+/* The new-session button is the console's power switch: the accent on its face,
+   not a ring drawn round it. */
 html[data-550c] :where([class*='_newSession']) {
-  box-shadow: inset 0 0 0 1px rgba(var(--c-glow-rgb), 0.42), inset 0 0 18px rgba(var(--c-glow-rgb), 0.08);
+  color: var(--c-amber-b);
+  text-shadow: var(--c-glow-text);
 }
 
 /* Selected rows carry the accent rule the splash puts on an active window title.
@@ -147,13 +117,17 @@ html[data-550c] :where([class*='_folderActive']) {
 
 /* ── 4. THE COMPOSER ─────────────────────────────────────────────────────── */
 
-/* The composer is the console's input bay. The ring is an inset shadow, not a
-   border: the composer's height is its textarea's, and a border here would grow
-   the whole input cluster by two pixels. */
+/* The composer is a POOL OF LIGHT, not a panel.
+
+   It used to be a filled rounded rectangle, and that is why it still read as a
+   box even with its border removed: a flat fill of `bgWin` on a darker page IS a
+   rectangle, however soft its corners. So there is no fill at all — only a soft
+   radial bloom that fades out before it reaches an edge, which leaves nothing
+   for the eye to trace. The input text sits on the page's own ground, where it
+   has all the contrast it needs. */
 html[data-550c] [data-composer-card] {
-  background: var(--c-bg-win);
-  box-shadow: inset 0 0 0 1px rgba(var(--c-glow-rgb), 0.42), inset 0 0 30px rgba(var(--c-glow-rgb), 0.06),
-    0 0 22px rgba(var(--c-glow-rgb), 0.08);
+  background: radial-gradient(105% 165% at 50% 46%, rgba(var(--c-glow-rgb), 0.07), transparent 72%);
+  box-shadow: none;
 }
 
 /* The composer's own copy follows the same 等宽 switch as everything else.
@@ -220,12 +194,11 @@ html[data-550c] :where([class*='_markdown'], article, [class*='_md']) a {
   text-underline-offset: 2px;
 }
 
-html[data-550c] :where([class*='_shiki'], [class*='_markdown']) :where(pre, code) {
-  border-radius: 2px;
-}
-
+/* Code keeps the app's own shape and separation; it is recoloured, not framed.
+   The ring that used to be drawn round every `pre` is the same accumulation the
+   surfaces section now avoids — a code block is already a different surface. */
 html[data-550c] :where(pre, [class*='_shiki']) {
-  box-shadow: inset 0 0 0 1px rgba(var(--c-glow-rgb), 0.24), inset 0 0 24px rgba(var(--c-glow-rgb), 0.04);
+  background-color: var(--c-bg-panel);
 }
 
 html[data-550c] :where([class*='_markdown'], article) :where(th, td) {
@@ -689,11 +662,9 @@ html[data-550c] .c-load-now {
   transition: color 0.25s linear, text-shadow 0.25s linear;
 }
 
-/* The panel: rounded, glowing, no hard frame.
-   Anchored by its RIGHT edge to the trigger, so it opens up and to the LEFT. The
-   control sits at the right end of the composer, and a centred panel reached far
-   enough right to cover the session and state readouts in the header — a
-   transient popover should not hide the thing it is reporting on. */
+/* The floating surface for the rheostat. It needs to be readable over whatever
+   it covers, so unlike the in-page surfaces it does keep a fill and a shadow —
+   but its edge is a soft drop shadow, not a drawn ring. */
 html[data-550c] .c-load-panel {
   position: absolute;
   bottom: calc(100% + 10px);
@@ -704,8 +675,7 @@ html[data-550c] .c-load-panel {
   padding: 12px 14px 11px;
   border-radius: 12px;
   background: var(--c-bg-win);
-  box-shadow: 0 0 0 1px rgba(var(--c-glow-rgb), 0.22), inset 0 0 26px rgba(var(--c-glow-rgb), 0.07),
-    0 12px 34px rgba(0, 0, 0, 0.62);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.66), 0 0 22px rgba(var(--c-glow-rgb), 0.1);
   font-family: var(--c-mono);
   font-size: 10px;
   letter-spacing: 0.14em;

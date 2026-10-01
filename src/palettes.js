@@ -265,14 +265,26 @@ function tokensFor(scheme) {
     '--dsw-alias-button-tool-bar-fill-invisible': alpha(accent, 0.06),
     '--dsw-alias-button-tool-bar-hover': alpha(accent, 0.24),
 
-    /* ── borders: the 1px amber rules the splash draws everywhere ─────── */
-    '--dsw-alias-border-l1': alpha(accent, 0.14),
-    '--dsw-alias-border-l2': alpha(accent, 0.24),
-    '--dsw-alias-border-l2-darkmode-thin': alpha(accent, 0.12),
-    '--dsw-alias-border-l3': alpha(accent, 0.34),
-    '--dsw-alias-border-l4': alpha(accent, 0.42),
-    '--dsw-alias-border-inverted': alpha(accent, 0.14),
-    '--dsw-alias-border-inverted2': alpha(accent, 0.2),
+    /* ── borders ──────────────────────────────────────────────────────────
+       Deliberately close to invisible.
+
+       This ladder is what draws the app's OWN 1px rules — every card edge,
+       field outline and divider in the settings pages comes from here, not from
+       anything this skin adds. The first version set them at 0.14–0.42, which
+       put a visible amber rectangle around everything and is exactly the boxed
+       look that had to go.
+
+       A rectangle is a box however thin you draw it, so separation is left to
+       the surface ladder (`bgBase` → `bgPanel` → `bgWin`) and these only supply
+       the faintest possible definition. `l4` keeps enough presence to still read
+       as emphasis where the app means emphasis. */
+    '--dsw-alias-border-l1': alpha(accent, 0.05),
+    '--dsw-alias-border-l2': alpha(accent, 0.09),
+    '--dsw-alias-border-l2-darkmode-thin': alpha(accent, 0.04),
+    '--dsw-alias-border-l3': alpha(accent, 0.13),
+    '--dsw-alias-border-l4': alpha(accent, 0.18),
+    '--dsw-alias-border-inverted': alpha(accent, 0.05),
+    '--dsw-alias-border-inverted2': alpha(accent, 0.08),
 
     /* ── scrollbars: character-cell rails, not grey pills ─────────────── */
     '--dsw-alias-scrollbar-bg-l1': alpha(accent, 0.22),
