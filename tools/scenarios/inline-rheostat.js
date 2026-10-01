@@ -19,8 +19,8 @@
   const row = card === null ? null : card.querySelector('[class*="_row"]')
   const load = document.querySelector('.c-load')
   const track = document.querySelector('.c-load-track')
-  const lattice = document.querySelector('.c-load-lattice')
-  const fill = document.querySelector('.c-load-fill')
+  const blocks = Array.from(document.querySelectorAll('.c-load-cell'))
+  const litBlocks = blocks.filter((cell) => cell.dataset.lit === '1')
   const tools = row === null ? null : row.querySelector('[class*="_tools"]')
   const trailing = row === null ? null : row.querySelector('[class*="_trailing"]')
 
@@ -28,6 +28,7 @@
   const indexOfLoad = order.findIndex((name) => name.includes('c-load'))
   const indexOfTools = order.findIndex((name) => name.includes('_tools'))
   const indexOfTrailing = order.findIndex((name) => name.includes('_trailing'))
+  const firstBlock = blocks[0] ?? null
 
   document.body.setAttribute(
     'data-inline',
@@ -50,11 +51,21 @@
       // Always live: the track is a real slider in the DOM, not a hidden one.
       trackVisible: track !== null && style(track).display !== 'none' && box(track).w > 0,
       trackBox: box(track),
-      // The texture: the lattice is drawn by crossing two diagonal gradients.
-      latticeLayers: lattice === null ? 0 : (style(lattice).backgroundImage.match(/linear-gradient/g) ?? []).length,
-      latticeSize: style(lattice)?.backgroundSize ?? null,
-      latticeAngleSlanted: (style(lattice)?.backgroundImage ?? '').includes('45deg'),
-      fillWidth: fill?.style.width ?? null,
+      // The texture: a run of separate narrow slanted blocks, not a gradient.
+      blocks: blocks.length,
+      litBlocks: litBlocks.length,
+      blockBox: box(firstBlock),
+      blockGap: style(firstBlock?.parentElement)?.gap ?? null,
+      // The slant, and that every block shares it.
+      blockTransform: style(firstBlock)?.transform ?? null,
+      distinctTransforms: new Set(blocks.map((cell) => style(cell).transform)).size,
+      // THE FLOW: it must exist ONLY where the load has reached. Lit blocks carry
+      // the wave and dark ones must be perfectly still — that difference is what
+      // makes the covered region read as live.
+      litAnimated: litBlocks.filter((cell) => style(cell).animationName !== 'none').length,
+      darkAnimated: blocks.filter((cell) => cell.dataset.lit === '0' && style(cell).animationName !== 'none').length,
+      distinctFlowDelays: new Set(litBlocks.map((cell) => style(cell).animationDelay)).size,
+      flowName: litBlocks.length === 0 ? null : style(litBlocks[0]).animationName,
       level: load?.getAttribute('data-550c-level') ?? null,
       readout: document.querySelector('.c-load-now')?.textContent ?? null,
     }),

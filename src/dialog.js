@@ -122,6 +122,16 @@ const LOAD_STOPS = [
 ]
 
 /**
+ * How many blocks the load track is made of.
+ *
+ * Dense on purpose: the fader covers ~430px, so this works out at roughly 7px per
+ * block including its gap — small enough that the row reads as a texture and a
+ * partial level is still legible, large enough that the individual blocks stay
+ * countable, which is what makes it read as loading cells rather than a gradient.
+ */
+const LOAD_CELLS = 56
+
+/**
  * How each detent is spelled in the harness's own effort submenu.
  *
  * Matched against the option's text, so the drive works in either language and
@@ -235,16 +245,30 @@ function mountDialogConsole() {
   track.setAttribute('aria-valuemax', String(LOAD_STOPS.length - 1))
   track.tabIndex = 0
 
-  // The track is a LATTICE of dense slanted squares, and the lit portion is the
-  // same lattice in the accent — so the load reads as a lit run of the texture
-  // rather than as a fill level on a plain rail.
-  const lattice = document.createElement('div')
-  lattice.className = 'c-load-lattice'
-  const fill = document.createElement('div')
-  fill.className = 'c-load-fill'
+  // The track is a run of DENSE NARROW SLANTED BLOCKS, lit left to right, so the
+  // load reads as a row of loading cells filling up — the shape of a segmented
+  // load meter rather than a fill level on a rail.
+  //
+  // The blocks are real elements rather than a striped gradient: a gradient can
+  // draw slanted stripes, but not separate blocks with gaps and their own edges,
+  // and the whole point of the texture is that you can count the cells. They are
+  // laid out with flex, so their width follows the track and nothing has to be
+  // recomputed when the window changes.
+  const cells = document.createElement('div')
+  cells.className = 'c-load-cells'
+  const cellNodes = []
+  for (let index = 0; index < LOAD_CELLS; index += 1) {
+    const cell = document.createElement('span')
+    cell.className = 'c-load-cell'
+    // The index drives the flow animation's phase. It is authored once, here,
+    // and read by the stylesheet as `--i`.
+    cell.style.setProperty('--i', String(index))
+    cells.appendChild(cell)
+    cellNodes.push(cell)
+  }
   const thumb = document.createElement('div')
   thumb.className = 'c-load-thumb'
-  track.append(lattice, fill, thumb)
+  track.append(cells, thumb)
 
   const loadNow = document.createElement('span')
   loadNow.className = 'c-load-now'
@@ -402,7 +426,13 @@ function mountDialogConsole() {
     track.setAttribute('aria-valuetext', stop.label)
     load.setAttribute('data-550c-load', String(Math.round(fraction * 100)))
 
-    fill.style.width = Math.round(fraction * 100) + '%'
+    // Light the blocks up to the load, and leave the rest dark: the boundary
+    // between the two IS the reading, which is why the handle is only a marker
+    // on top of it rather than the thing carrying the value.
+    const lit = Math.round(fraction * LOAD_CELLS)
+    for (let position = 0; position < LOAD_CELLS; position += 1) {
+      cellNodes[position].dataset.lit = position < lit ? '1' : '0'
+    }
     thumb.style.left = Math.round(fraction * 100) + '%'
     // The level attribute is what the stylesheet keys the colour ladder and the
     // pulse off, so "how loaded is it" is expressed once, in the DOM, and the

@@ -671,47 +671,64 @@ html[data-550c] .c-load-track {
   touch-action: none;
 }
 
-/* THE LATTICE: dense slanted squares, drawn by crossing two diagonal stripe
-   patterns. This is the texture the whole track is made of — the lit portion is
-   the same lattice in the accent, so the load reads as a run of lit texture
-   rather than as a fill level on a plain rail. */
-html[data-550c] .c-load-lattice,
-html[data-550c] .c-load-fill {
+/* THE BLOCKS: dense narrow slanted rectangles, packed edge to edge. Each one is
+   a skewed rectangle with its own edges and its own gap, which is what a striped
+   gradient cannot draw — and the whole point of the texture is that the cells
+   stay countable. Flex distributes them, so their width follows the track. */
+html[data-550c] .c-load-cells {
   position: absolute;
-  left: 0;
-  top: 50%;
-  height: 14px;
-  transform: translateY(-50%);
-  border-radius: 3px;
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: repeat, repeat;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
-html[data-550c] .c-load-lattice {
-  right: 0;
-  background-image: repeating-linear-gradient(45deg, rgba(var(--c-glow-rgb), 0.22) 0 1px, transparent 1px 5px),
-    repeating-linear-gradient(-45deg, rgba(var(--c-glow-rgb), 0.22) 0 1px, transparent 1px 5px);
-  background-color: rgba(var(--c-glow-rgb), 0.05);
+html[data-550c] .c-load-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 13px;
+  border-radius: 1px;
+  /* The slant. One angle for every block, so the row reads as a single sheared
+     surface rather than a set of independently tilted chips. */
+  transform: skewX(-18deg);
+  background: rgba(var(--c-glow-rgb), 0.16);
+  transition: background 0.18s linear, box-shadow 0.18s linear;
 }
 
-/* The lit run. Same lattice, in the accent, so the texture does not change where
-   the load ends — only its brightness does. */
-html[data-550c] .c-load-fill {
-  width: 0;
-  background-image: repeating-linear-gradient(45deg, var(--c-amber) 0 1px, transparent 1px 5px),
-    repeating-linear-gradient(-45deg, var(--c-amber) 0 1px, transparent 1px 5px);
-  box-shadow: 0 0 12px rgba(var(--c-glow-rgb), 0.45);
-  transition: width 0.12s linear, background-image 0.3s linear;
-  pointer-events: none;
+/* A lit block: the accent on its face plus a little bloom, so a lit run reads as
+   powered rather than merely brighter.
+
+   And it FLOWS. Only lit blocks carry the animation, so the movement exists only
+   where the load has already reached — the dark blocks stay perfectly still, and
+   the boundary between moving light and dead cells is what makes the covered
+   region legible as "live" at a glance. The phase comes from the block's own
+   index, so the light travels along the run as a wave instead of every cell
+   pulsing together. The delay is negative so the wave is already in motion on
+   the first frame rather than starting from the left edge. */
+html[data-550c] .c-load-cell[data-lit='1'] {
+  background: var(--c-amber);
+  box-shadow: 0 0 6px rgba(var(--c-glow-rgb), 0.7);
+  animation: c-load-flow 1.7s linear infinite;
+  animation-delay: calc(var(--i) * -55ms);
 }
 
-/* The handle: a bright slanted bar, matching the lattice's angle so it reads as
-   part of the same texture rather than a foreign knob. */
+@keyframes c-load-flow {
+  0%,
+  100% {
+    filter: brightness(0.78);
+  }
+  45% {
+    filter: brightness(1.3);
+  }
+}
+
+/* The handle: a bright slanted bar sitting on the boundary between lit and dark,
+   at the same angle as the blocks so it reads as part of the same surface. */
 html[data-550c] .c-load-thumb {
   position: absolute;
   top: 50%;
   width: 3px;
-  height: 20px;
+  height: 19px;
   transform: translate(-50%, -50%) skewX(-18deg);
   background: var(--c-amber-b);
   box-shadow: 0 0 10px rgba(var(--c-glow-rgb), 0.9);
@@ -727,16 +744,16 @@ html[data-550c] .c-load-track:focus-visible {
 
 /* ── the load ladder ─────────────────────────────────────────────────────── */
 
-/* As the fader climbs the whole control heats up: the lit run, the handle and
+/* As the fader climbs the whole control heats up: the lit blocks, the handle and
    the readout all shift together, so "how loaded is it" is legible from any of
    them without reading a number. */
 html[data-550c] .c-load[data-550c-level='low'] .c-load-now {
   color: var(--c-cyan);
 }
 
-html[data-550c] .c-load[data-550c-level='low'] .c-load-fill {
-  background-image: repeating-linear-gradient(45deg, var(--c-cyan) 0 1px, transparent 1px 5px),
-    repeating-linear-gradient(-45deg, var(--c-cyan) 0 1px, transparent 1px 5px);
+html[data-550c] .c-load[data-550c-level='low'] .c-load-cell[data-lit='1'] {
+  background: var(--c-cyan);
+  box-shadow: 0 0 6px rgba(79, 209, 197, 0.6);
 }
 
 html[data-550c] .c-load[data-550c-level='low'] .c-load-thumb {
@@ -752,9 +769,9 @@ html[data-550c] .c-load[data-550c-level='high'] .c-load-now {
   text-shadow: var(--c-glow-text);
 }
 
-html[data-550c] .c-load[data-550c-level='high'] .c-load-fill {
-  background-image: repeating-linear-gradient(45deg, var(--c-amber-b) 0 1px, transparent 1px 5px),
-    repeating-linear-gradient(-45deg, var(--c-amber-b) 0 1px, transparent 1px 5px);
+html[data-550c] .c-load[data-550c-level='high'] .c-load-cell[data-lit='1'] {
+  background: var(--c-amber-b);
+  box-shadow: 0 0 7px rgba(var(--c-glow-rgb), 0.85);
 }
 
 html[data-550c] .c-load[data-550c-level='high'] .c-load-thumb {
@@ -767,10 +784,9 @@ html[data-550c] .c-load[data-550c-level='max'] .c-load-now {
   animation: c-load-alarm 0.9s steps(1) infinite;
 }
 
-html[data-550c] .c-load[data-550c-level='max'] .c-load-fill {
-  background-image: repeating-linear-gradient(45deg, var(--c-red) 0 1px, transparent 1px 5px),
-    repeating-linear-gradient(-45deg, var(--c-red) 0 1px, transparent 1px 5px);
-  box-shadow: 0 0 14px color-mix(in srgb, var(--c-red) 55%, transparent);
+html[data-550c] .c-load[data-550c-level='max'] .c-load-cell[data-lit='1'] {
+  background: var(--c-red);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--c-red) 70%, transparent);
 }
 
 html[data-550c] .c-load[data-550c-level='max'] .c-load-thumb {
@@ -847,6 +863,7 @@ html[data-550c][data-550c-mark='off'] .c-load {
   html[data-550c] .c-rec > s,
   html[data-550c] [data-composer-placeholder]::after,
   html[data-550c] .c-load[data-550c-level='max'] .c-load-now,
+  html[data-550c] .c-load-cell[data-lit='1'],
   html[data-550c] .c-mark,
   html[data-550c] .c-cell[data-lit='1'],
   html[data-550c] .c-tps-rail::after,
