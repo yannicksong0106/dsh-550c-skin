@@ -28,6 +28,7 @@ runInContext(
     `
     globalThis.__p = {
       schemes: SCHEMES,
+      defaultScheme: DEFAULT_SCHEME,
       themeId,
       schemeOfTheme,
       tokensFor,
@@ -67,6 +68,30 @@ test('four schemes, unique ids, unique theme ids', () => {
   const themeIds = p.schemes.map((scheme) => p.themeId(scheme))
   assert.equal(new Set(themeIds).size, themeIds.length, 'registered theme ids must be unique')
   for (const id of themeIds) assert.match(id, /^550c-[a-z]+$/)
+})
+
+test('the default scheme is white, and is the one the row offers first', () => {
+  // "Default" is a real property with one definition, not a comment: the scheme
+  // at the front of the list is the one the skin starts on, and this pins it so
+  // the row's first option and the default cannot drift apart.
+  assert.equal(p.defaultScheme, 'white', 'the default scheme must be white')
+  assert.equal(p.schemes[0].id, p.defaultScheme, 'the default must be the first scheme offered')
+
+  // And the host half must accept it in the same order, or a stored default would
+  // be rejected on load and the skin would come back on a different colour than
+  // it left.
+  const host = readFileSync(resolve(root, 'lib/index.js'), 'utf8')
+  const list = host.match(/const SCHEMES = \[([^\]]*)\]/)
+  assert.ok(list !== null, 'the host must declare its accepted schemes')
+  const accepted = list[1]
+    .split(',')
+    .map((entry) => entry.trim().replace(/^'|'$/g, ''))
+    .filter(Boolean)
+  for (const scheme of p.schemes) {
+    assert.ok(accepted.includes(scheme.id), `the host must accept the scheme "${scheme.id}"`)
+  }
+  assert.equal(accepted[0], 'off', 'the host list starts with the off switch')
+  assert.equal(accepted[1], p.defaultScheme, 'the host must list the default first, after "off"')
 })
 
 test('every scheme resolves to a complete, well-formed ladder', () => {

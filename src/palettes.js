@@ -71,23 +71,59 @@ function mix(a, b, amount) {
 /** @type {Scheme[]} */
 const SCHEMES = [
   {
+    id: 'white',
+    label: '白',
+    // P4 white/grey phosphor: the port's `data-scheme="white"` block.
+    //
+    // FIRST in this list, and therefore the default: the schemes are ordered the
+    // way the settings row offers them, and the one at the front is the one the
+    // skin starts on.
+    accent: '#c9c9c9',
+    accentBright: '#ffffff',
+    accentDim: '#4a4a4a',
+    bg: '#010101',
+    bgPanel: '#070707',
+    bgWin: '#0c0c0c',
+    sidebar: '#040404',
+    text: '#c0c0c0',
+    secondary: '#9a9a9a',
+    textDim: '#7a7a7a',
+    textFaint: '#3d3d3d',
+    red: '#ff5a5a',
+    redBright: '#ff8f8f',
+    green: '#dcdcdc',
+    cyan: '#d0d0d0',
+  },
+  {
     id: 'amber',
     label: '琥珀',
-    // The author's own CRT palette: the default, and the one the splash plays in.
+    // COOL BASE, AMBER ACCENT.
+    //
+    // This was all-amber — warm sand text on warm near-black — and it read muddy
+    // and dated. The problem was not the amber itself but that every colour sat
+    // on the same hue: large areas of one warm tone flatten into brown, and
+    // nothing stands out because nothing contrasts.
+    //
+    // So the base and the ink went cool (a blue-black ground, cool off-white
+    // text) and the amber was kept for what it is actually good at: the mark,
+    // the load meter, warnings, emphasis. The machine identity survives — the
+    // splash is still amber — while the surface it sits on stops competing with
+    // it. The accent values are unchanged, so anything tuned against them still
+    // holds.
     accent: '#e8a020',
     accentBright: '#ffc043',
     accentDim: '#8a5e10',
-    bg: '#050403',
-    bgPanel: '#0a0805',
-    bgWin: '#0d0a06',
-    sidebar: '#080604',
-    text: '#d8c090',
-    secondary: '#b39a63',
-    textDim: '#8a7248',
-    textFaint: '#4a3f28',
-    red: '#e05030',
-    redBright: '#ff7050',
-    green: '#b8c840',
+    bg: '#04060a',
+    bgPanel: '#070b12',
+    bgWin: '#0a0f18',
+    sidebar: '#050810',
+    text: '#c8d4e2',
+    secondary: '#94a3b8',
+    textDim: '#5f6d80',
+    textFaint: '#333d4d',
+    red: '#f0654a',
+    redBright: '#ff8a6a',
+    green: '#7fd18a',
     cyan: '#4fd1c5',
   },
   {
@@ -130,30 +166,20 @@ const SCHEMES = [
     green: '#7ff0d0',
     cyan: '#a6f0ff',
   },
-  {
-    id: 'white',
-    label: '白',
-    // P4 white/grey phosphor: the port's `data-scheme="white"` block.
-    accent: '#c9c9c9',
-    accentBright: '#ffffff',
-    accentDim: '#4a4a4a',
-    bg: '#010101',
-    bgPanel: '#070707',
-    bgWin: '#0c0c0c',
-    sidebar: '#040404',
-    text: '#c0c0c0',
-    secondary: '#9a9a9a',
-    textDim: '#7a7a7a',
-    textFaint: '#3d3d3d',
-    red: '#ff5a5a',
-    redBright: '#ff8f8f',
-    green: '#dcdcdc',
-    cyan: '#d0d0d0',
-  },
 ]
 
 /** The theme ids this plugin registers, in the order Appearance shows them. */
 const THEME_PREFIX = '550c-'
+
+/**
+ * The scheme the skin starts on.
+ *
+ * Taken from the front of the list rather than written out again, so the default
+ * and the first option in the settings row can never drift apart — the kind of
+ * mismatch that makes "the default" mean two different things depending on where
+ * you look.
+ */
+const DEFAULT_SCHEME = SCHEMES[0].id
 
 /** How a scheme is addressed everywhere else: `550c-amber`. */
 function themeId(scheme) {
