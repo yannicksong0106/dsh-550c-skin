@@ -1,0 +1,77 @@
+{
+  "name": "dsh-550c-skin",
+  "version": "0.1.0",
+  "description": "550C 皮肤：把 DeepSeek Harness 的整个界面换成 550C 控制台——四套磷光配色（琥珀/绿/青/白）、扫描线与暗角、等宽字体、机器读数栏，与 dsh-550c-boot 的开机片头同一套视觉。",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "Ziyang Song"
+  },
+  "contributors": [
+    {
+      "name": "Voidpoket",
+      "comment": "550C 片头动画与配色原稿（dsh-550c-boot 的 assets/550C-source.html）"
+    }
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "cordis",
+    "theme",
+    "skin",
+    "crt",
+    "phosphor",
+    "550c",
+    "web-ui"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.2.0-rc.1"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-theme",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node --check lib/client.js && node --check lib/index.js",
+    "test": "node scripts/build.mjs && node --test test/*.test.mjs",
+    "geometry": "node tools/check-geometry.mjs",
+    "verify": "node scripts/build.mjs && node --check lib/client.js && node --check lib/index.js && node --test test/*.test.mjs",
+    "prepublishOnly": "node scripts/build.mjs && node --check lib/client.js && node --check lib/index.js"
+  },
+  "dependencies": {}
+}

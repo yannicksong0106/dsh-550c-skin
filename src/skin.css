@@ -1,0 +1,579 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   550C · DSH skin — the style layer
+
+   Everything here is scoped to `html[data-550c]`, which the client half sets
+   only while this plugin's skin is switched on; switching it off in 设置 → 通用
+   removes the whole layer and cannot leave anything behind.
+
+   THE ONE RULE THIS FILE FOLLOWS
+
+   It changes how DSH looks, never where anything is. No padding, margin, size,
+   display, flex or offset is set on any of the app's own elements, so the shell
+   composes exactly as DSH composed it and every control keeps the hit target
+   and the geometry its authors designed. What changes is colour (the `--dsw-*`
+   ladder is written by the client half out of src/palettes.js), type, rules,
+   corners, glow, and a set of absolutely-positioned decorations.
+
+   Decorations are the one place geometry is touched at all: they are
+   `position:absolute` pseudo-elements with `pointer-events:none`, which paint
+   inside a box without contributing to layout. `position:relative` is set only
+   where one needs an anchor, and never with an offset, so nothing moves.
+
+   Class selectors use the CSS-module LOCAL name via `[class*="_name"]`: the
+   hash in front of it (`pI_x6G_frame`, `hHd-Xa_root`) changes between DSH
+   builds, the local name does not. Names generic enough to collide across
+   modules (`_root`, `_row`, `_title`) are not used bare.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. TYPE ─────────────────────────────────────────────────────────────── */
+
+/* The splash's Windows fixed-pitch pair: Cascadia Mono for Latin, NSimSun for
+   CJK — fixed-pitch per glyph, which is what makes mixed text line up. The
+   opt-out exists because a fully monospaced UI is a strong opinion.
+   Font sizes are deliberately NOT touched: changing them would reflow DSH's
+   own layout, and this layer does not do that. */
+html[data-550c]:not([data-550c-mono='off']) {
+  --dsw-font-family: var(--c-mono);
+  --ds-font-family-code: var(--c-mono);
+}
+
+html[data-550c] {
+  -webkit-font-smoothing: antialiased;
+}
+
+html[data-550c] ::selection {
+  background: rgba(var(--c-glow-rgb), 0.28);
+  color: var(--c-text);
+}
+
+/* DSH's own small labels — section headers, scope triggers, panel seats — take
+   the tracked uppercase treatment the splash uses for machine labels. */
+html[data-550c] :where([class*='_sectionLabel'], [class*='_seatLabel'], [class*='_triggerLabel'], [class*='_sectionHeader']) {
+  letter-spacing: 0.1em;
+}
+
+/* A leading tick on section headers, drawn as a decoration. */
+html[data-550c] :where([class*='_sectionLabel'])::before {
+  content: '▚ ';
+  color: var(--c-amber-d);
+}
+
+/* ── 2. SURFACES ─────────────────────────────────────────────────────────── */
+
+/* A CRT has no rounded plastic. Circles must survive — avatars, status dots and
+   the send button are drawn round, and squaring them reads as broken rather
+   than retro — so the square-corner pass is limited to boxy controls. */
+html[data-550c] :where(button, [role='button'], [role='tab'], input, textarea, select, [role='dialog'], [role='menu'], [role='listbox']) {
+  border-radius: 2px;
+}
+
+html[data-550c] :where([class*='_card'], [class*='_panel'], [class*='_bubble'], [class*='_popover'], [class*='_tooltip'], [class*='_toast'], [class*='_input'], [class*='_menu']) {
+  border-radius: 2px;
+}
+
+/* DSH's raised surfaces get the splash's own panel treatment: a phosphor rule
+   and a faint inward bloom instead of a drop shadow, because a CRT does not
+   cast one.
+
+   The rule is an INSET BOX-SHADOW, never a border. A border is part of the box
+   model: adding one grows the element by its width on both axes and pushes
+   everything around it, which this layer must not do. An inset shadow paints
+   the identical 1px line inside the box's own edge and contributes nothing to
+   layout. Verified by tools/scenarios/rects.js — see the geometry diff in
+   docs/VERIFICATION.md. */
+html[data-550c] :where([class*='_card'], [class*='_bubble'], [class*='_popover'], [class*='_menu'], [class*='_tooltip'], [class*='_toast'], [role='dialog']) {
+  box-shadow: inset 0 0 0 1px rgba(var(--c-glow-rgb), 0.24), inset 0 0 26px rgba(var(--c-glow-rgb), 0.035);
+}
+
+html[data-550c] :where([data-dockkit-surface], [class*='_surface']) {
+  box-shadow: inset 0 0 0 1px rgba(var(--c-glow-rgb), 0.16);
+}
+
+/* Instrument corners: eight one-pixel gradients — two per corner — which is the
+   only way to get crisp brackets that survive any box size and never fight the
+   element's own border. Painted by a pseudo-element, so a box of any kind can
+   carry them without a single layout consequence. */
+html[data-550c] :where([class*='_card'], [class*='_bubble'], [role='dialog']) {
+  position: relative;
+}
+
+html[data-550c] :where([class*='_card'], [class*='_bubble'], [role='dialog'])::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(var(--c-amber) 0 0), linear-gradient(var(--c-amber) 0 0),
+    linear-gradient(var(--c-amber) 0 0), linear-gradient(var(--c-amber) 0 0),
+    linear-gradient(var(--c-amber) 0 0), linear-gradient(var(--c-amber) 0 0),
+    linear-gradient(var(--c-amber) 0 0), linear-gradient(var(--c-amber) 0 0);
+  background-size: 9px 1px, 1px 9px, 9px 1px, 1px 9px, 9px 1px, 1px 9px, 9px 1px, 1px 9px;
+  background-position: 0 0, 0 0, 100% 0, 100% 0, 0 100%, 0 100%, 100% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  opacity: 0.8;
+}
+
+/* ── 3. CONTROLS ─────────────────────────────────────────────────────────── */
+
+/* Primary actions glow instead of casting: the accent fill plus the splash's own
+   button bloom. */
+html[data-550c] :where([class*='_primary']) {
+  box-shadow: 0 0 14px rgba(var(--c-glow-rgb), 0.22);
+}
+
+html[data-550c] :where(button, [role='button']):hover {
+  box-shadow: 0 0 12px rgba(var(--c-glow-rgb), 0.18);
+}
+
+/* Focus is a phosphor ring, not a browser outline. `outline` is used rather than
+   a border so focus never changes a box's size. */
+html[data-550c] :focus-visible {
+  outline: 1px solid var(--c-amber);
+  outline-offset: 1px;
+  box-shadow: 0 0 12px rgba(var(--c-glow-rgb), 0.35);
+}
+
+/* The new-session button is the console's power switch. Painted with an inset
+   ring rather than a border, for the reason in §2. */
+html[data-550c] :where([class*='_newSession']) {
+  box-shadow: inset 0 0 0 1px rgba(var(--c-glow-rgb), 0.42), inset 0 0 18px rgba(var(--c-glow-rgb), 0.08);
+}
+
+/* Selected rows carry the accent rule the splash puts on an active window title.
+   An inset shadow, so the row keeps its box. */
+html[data-550c] :where([class*='_sessionRow'], [class*='_projectRow'], [class*='_folder'])[class*='_selected'],
+html[data-550c] :where([class*='_folderActive']) {
+  box-shadow: inset 2px 0 0 0 var(--c-amber);
+}
+
+/* ── 4. THE COMPOSER ─────────────────────────────────────────────────────── */
+
+/* The composer is the console's input bay. The ring is an inset shadow, not a
+   border: the composer's height is its textarea's, and a border here would grow
+   the whole input cluster by two pixels. */
+html[data-550c] [data-composer-card] {
+  background: var(--c-bg-win);
+  box-shadow: inset 0 0 0 1px rgba(var(--c-glow-rgb), 0.42), inset 0 0 30px rgba(var(--c-glow-rgb), 0.06),
+    0 0 22px rgba(var(--c-glow-rgb), 0.08);
+}
+
+/* The composer's own copy follows the same 等宽 switch as everything else.
+   It is gated deliberately rather than always-on: the workspace seat sizes
+   itself against the composer's text metrics, so a font swap here narrows that
+   seat by two pixels. With the switch off the skin's geometry is byte-identical
+   to stock DSH; with it on, the only difference left anywhere is text metrics,
+   which is what choosing a different typeface means. */
+html[data-550c]:not([data-550c-mono='off']) [data-composer-input] {
+  font-family: var(--c-mono);
+}
+
+html[data-550c] [data-composer-card] {
+  caret-color: var(--c-amber);
+}
+
+/* A block cursor parked at the end of an EMPTY composer — the one place a caret
+   glyph is stable, because an empty editor has one line and no flow to disturb.
+   The real caret still works; it just also blinks in phosphor.
+
+   layout-exempt: this is the single decoration in the whole layer that sits IN
+   TEXT FLOW rather than out of it. It has to be inline-block with a width to be
+   visible at all, so unlike every other rule here it does occupy space — the
+   width of one glyph plus 3px, after the placeholder's last character. That is
+   bounded and invisible in practice (the composer is hundreds of pixels wider
+   than its placeholder), but it is a real exception, so it is marked and
+   counted by test/layout-contract.test.mjs rather than hidden. Verified by
+   tools/scenarios/rects.js, which measures the placeholder's box for exactly
+   this reason. */
+html[data-550c] [data-composer-input] :where([class*='_placeholder'])::after,
+html[data-550c] [data-composer-placeholder]::after {
+  content: '';
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  margin-left: 3px;
+  vertical-align: -0.18em;
+  background: var(--c-amber);
+  opacity: 0.75;
+  animation: c-blink 1.06s steps(1) infinite;
+}
+
+html[data-550c]:not([data-550c-mono='off']) [data-composer-card] :where([class*='_trigger'], [class*='_triggerLabel'], [class*='_modes']) {
+  font-family: var(--c-mono);
+  letter-spacing: 0.04em;
+}
+
+/* ── 5. TRANSCRIPT, MARKDOWN, CODE ───────────────────────────────────────── */
+
+html[data-550c] :where([class*='_markdown'], article, [class*='_md']) :where(h1, h2, h3) {
+  color: var(--c-amber-b);
+  text-shadow: var(--c-glow-text);
+  letter-spacing: 0.02em;
+}
+
+html[data-550c] :where([class*='_markdown'], article, [class*='_md']) h2::before {
+  content: '▸ ';
+  color: var(--c-amber-d);
+}
+
+html[data-550c] :where([class*='_markdown'], article, [class*='_md']) a {
+  color: var(--c-amber-b);
+  text-decoration-color: var(--c-amber-d);
+  text-underline-offset: 2px;
+}
+
+html[data-550c] :where([class*='_shiki'], [class*='_markdown']) :where(pre, code) {
+  border-radius: 2px;
+}
+
+html[data-550c] :where(pre, [class*='_shiki']) {
+  box-shadow: inset 0 0 0 1px rgba(var(--c-glow-rgb), 0.24), inset 0 0 24px rgba(var(--c-glow-rgb), 0.04);
+}
+
+html[data-550c] :where([class*='_markdown'], article) :where(th, td) {
+  border-color: rgba(var(--c-glow-rgb), 0.24);
+}
+
+html[data-550c] :where([class*='_markdown'], article) th {
+  color: var(--c-amber);
+  letter-spacing: 0.06em;
+}
+
+/* Blockquotes keep whatever border the app gave them and are only recoloured —
+   widening a border would reflow the quote's text. The accent strip is drawn as
+   an inset shadow so it reads as the splash's note strip either way. */
+html[data-550c] :where([class*='_markdown'], article) blockquote {
+  border-left-color: var(--c-amber-d);
+  background: rgba(var(--c-glow-rgb), 0.05);
+  box-shadow: inset 2px 0 0 0 var(--c-amber-d);
+}
+
+/* ── 6. RUNNING WORK AS CHARACTER CELLS ──────────────────────────────────── */
+
+/* A tool call that is still running gets the splash's cell bar as an advancing
+   underline, rather than a smooth web progress bar. Decorated, not resized. */
+html[data-550c] :where([data-state='running'], [data-running], [class*='_running']) {
+  position: relative;
+}
+
+html[data-550c] :where([data-state='running'], [data-running], [class*='_running'])::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(90deg, var(--c-amber) 0 4px, transparent 4px 7px);
+  opacity: 0.5;
+  animation: c-cells 1.2s linear infinite;
+}
+
+@keyframes c-cells {
+  from {
+    background-position-x: 0;
+  }
+  to {
+    background-position-x: 7px;
+  }
+}
+
+/* ── 7. SCROLLBARS AS RAILS ──────────────────────────────────────────────── */
+
+/* Appearance only. The scrollbar's THICKNESS is a layout property: the app's
+   scroll bodies are `overflow:auto`, so a wider scrollbar narrows their content
+   box and shifts everything inside by the difference. An earlier draft set
+   `width:10px` here and moved the composer cluster by two pixels — caught by
+   tools/scenarios/rects.js. Colour, corner and thumb inset are free; size is
+   not, so the platform's own width is left alone. */
+html[data-550c] ::-webkit-scrollbar-track {
+  background: rgba(var(--c-glow-rgb), 0.05);
+}
+
+html[data-550c] ::-webkit-scrollbar-thumb {
+  border-radius: 0;
+  background-clip: padding-box;
+}
+
+html[data-550c] ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+html[data-550c] {
+  scrollbar-color: var(--dsw-alias-scrollbar-bg-l1) transparent;
+}
+
+/* ── 8. ATMOSPHERE ───────────────────────────────────────────────────────── */
+
+/* One overlay carries every atmospheric effect, so they switch as a unit and can
+   never intercept a click. It sits above the app (2147480000) but below the boot
+   splash (2147482000), so a splash playing over a skinned UI stays clean. */
+html[data-550c] .c-crt,
+html[data-550c] .c-crt * {
+  pointer-events: none !important;
+  /* The darwin base sheet turns direct body children into no-drag regions;
+     `initial` takes this overlay out of that computation rather than turning
+     the whole top of the window into a drag handle. */
+  -webkit-app-region: initial !important;
+}
+
+html[data-550c] .c-crt {
+  position: fixed;
+  inset: 0;
+  z-index: 2147480000;
+  overflow: hidden;
+}
+
+/* Scanlines: a 3px period at very low alpha. The alpha is load-bearing —
+   anything above ~0.2 turns 12px CJK into mush. */
+html[data-550c] .c-crt .c-scan {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.32) 0 1px, rgba(0, 0, 0, 0) 1px 3px);
+  opacity: var(--c-scan-strength, 0.5);
+}
+
+/* The rolling refresh band a CRT shows: one soft bright bar, very slow. */
+html[data-550c] .c-crt .c-roll {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 28vh;
+  background: linear-gradient(
+    180deg,
+    rgba(var(--c-glow-rgb), 0) 0%,
+    rgba(var(--c-glow-rgb), 0.035) 50%,
+    rgba(var(--c-glow-rgb), 0) 100%
+  );
+  animation: c-roll 9s linear infinite;
+}
+
+@keyframes c-roll {
+  from {
+    top: -30vh;
+  }
+  to {
+    top: 100vh;
+  }
+}
+
+/* Vignette: the tube's corner falloff. */
+html[data-550c] .c-crt .c-vig {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 78% 78% at 50% 50%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.42) 100%);
+  opacity: var(--c-vig-strength, 0.7);
+}
+
+/* A barely-there global flicker. Stepped, not smooth: a smooth sine reads as a
+   rendering bug, a stepped one reads as a phosphor. */
+html[data-550c] .c-crt .c-flicker {
+  position: absolute;
+  inset: 0;
+  background: rgba(var(--c-glow-rgb), 0.012);
+  animation: c-flick 4.7s steps(1) infinite;
+}
+
+@keyframes c-flick {
+  0%,
+  96% {
+    opacity: 0;
+  }
+  96.5% {
+    opacity: 1;
+  }
+  97% {
+    opacity: 0;
+  }
+  98.2% {
+    opacity: 1;
+  }
+  98.6% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The bloom: a soft accent wash from the top of the tube, which is what makes
+   the palette feel emissive rather than merely dark. */
+html[data-550c] .c-crt .c-bloom {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(var(--c-glow-rgb), 0.06), rgba(var(--c-glow-rgb), 0) 70%);
+}
+
+/* The prompt cursor: a blinking block at the end of the transcript, which is
+   where the splash's log ends too. */
+html[data-550c] .c-cursor::after {
+  content: '';
+  display: inline-block;
+  width: 0.62em;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.16em;
+  background: var(--c-amber);
+  box-shadow: 0 0 7px rgba(var(--c-glow-rgb), 0.6);
+  animation: c-blink 1.06s steps(1) infinite;
+}
+
+/* The ● REC beat, for the session activity dot the sidebar already draws. */
+html[data-550c] .c-rec > s {
+  animation: c-blink 1.06s steps(1) infinite;
+}
+
+@keyframes c-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0.12;
+  }
+}
+
+/* ── 9. EFFECT SWITCHES ──────────────────────────────────────────────────── */
+
+html[data-550c][data-550c-scan='off'] .c-crt .c-scan,
+html[data-550c][data-550c-scan='off'] .c-crt .c-roll,
+html[data-550c][data-550c-scan='off'] .c-crt .c-flicker,
+html[data-550c][data-550c-vig='off'] .c-crt .c-vig,
+html[data-550c][data-550c-vig='off'] .c-crt .c-bloom {
+  display: none;
+}
+
+/* ── 10. THE 550C MARK, IN THE DIALOG BOX ────────────────────────────────── */
+
+/* The mark lives inside the composer card, in the toolbar row's empty middle —
+   a measured 415px gap between the permission trigger and the model selector
+   (tools/scenarios/composer-map.js). It writes itself out as characters and
+   then stays as a standing READY readout.
+
+   Absolutely positioned and `pointer-events:none`, which is load-bearing rather
+   than stylistic: the composer's height is driven by its content, so a mark in
+   flow would resize the whole input cluster. Out of flow it can be any size
+   without moving a box. */
+html[data-550c] .c-dialog-mark {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.85;
+  transform: translateX(-50%);
+  transition: opacity 0.6s ease;
+  -webkit-app-region: initial !important;
+}
+
+/* The pixel mark: block glyphs on a cell grid. `white-space:pre` keeps the
+   authored rows; the tight line-height is what makes the cells stack into a
+   bitmap instead of reading as five lines of text. */
+html[data-550c] .c-dialog-logo {
+  margin: 0;
+  font-family: var(--c-mono);
+  font-size: 5px;
+  line-height: 1.06;
+  letter-spacing: 0.1em;
+  white-space: pre;
+  color: var(--c-amber);
+  text-shadow: 0 0 5px rgba(var(--c-glow-rgb), 0.55);
+}
+
+/* The typed lines, in the instrument voice: small, tracked, upper-case-free
+   because the splash's own log lines are not upper-case. */
+html[data-550c] .c-dialog-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  max-width: 30ch;
+  font-family: var(--c-mono);
+  font-size: 10px;
+  line-height: 1.3;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+html[data-550c] .c-dialog-line {
+  color: var(--c-text-dim);
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+html[data-550c] .c-dialog-line.is-sys {
+  color: var(--c-text);
+}
+
+html[data-550c] .c-dialog-line.is-ready {
+  color: var(--c-amber);
+  letter-spacing: 0.18em;
+  text-shadow: var(--c-glow-text);
+}
+
+/* A blinking cell after the typed line, the same beat as the composer's block
+   cursor — the mark is a terminal, so it ends its line the way a terminal does. */
+html[data-550c] .c-dialog-line:not(.is-ready)::after {
+  content: '';
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.16em;
+  background: var(--c-amber);
+  opacity: 0.7;
+  animation: c-blink 1.06s steps(1) infinite;
+}
+
+/* SETTLED: the mark has finished and stays. It comes up to full strength and
+   keeps only a slow breath — a status readout that keeps pulsing is a
+   notification. */
+html[data-550c] .c-dialog-mark[data-550c-state='settled'] {
+  opacity: 1;
+}
+
+html[data-550c] .c-dialog-mark[data-550c-state='settled'] .c-dialog-logo {
+  animation: c-dialog-breathe 6s ease-in-out infinite;
+}
+
+@keyframes c-dialog-breathe {
+  0%,
+  100% {
+    opacity: 0.85;
+    text-shadow: 0 0 5px rgba(var(--c-glow-rgb), 0.5);
+  }
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 11px rgba(var(--c-glow-rgb), 0.75);
+  }
+}
+
+/* Its own switch, so the mark can be turned off without turning off the skin. */
+html[data-550c][data-550c-mark='off'] .c-dialog-mark {
+  display: none;
+}
+
+/* ── 11. REDUCED MOTION ──────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-550c] .c-crt .c-roll,
+  html[data-550c] .c-crt .c-flicker,
+  html[data-550c] .c-crt .c-bloom,
+  html[data-550c] .c-cursor::after,
+  html[data-550c] .c-rec > s,
+  html[data-550c] [data-composer-placeholder]::after,
+  html[data-550c] .c-dialog-line:not(.is-ready)::after,
+  html[data-550c] .c-dialog-mark[data-550c-state='settled'] .c-dialog-logo,
+  html[data-550c] :where([data-state='running'], [data-running])::after {
+    animation: none;
+  }
+  html[data-550c] .c-crt .c-flicker {
+    display: none;
+  }
+}
