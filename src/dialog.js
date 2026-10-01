@@ -103,19 +103,36 @@ const TPS_FULL_SCALE = 120
 /* ── the rheostat ────────────────────────────────────────────────────────── */
 
 /**
- * The four detents, in the app's own order.
+ * The four detents, in the harness's own order and with its own ids.
  *
- * The ids are the harness's (`default`, `low`, `high`, `max` — the same values
- * its reasoning levels use), and the labels are what this console calls them.
- * The reading above the slider is a load figure because that is what the control
- * actually trades: more reasoning effort is more compute spent per answer.
+ * The ids are the real level names the harness uses — `off`, `low`, `high`,
+ * `max`, read from its own effort submenu rather than assumed. (An earlier pass
+ * assumed `default/low/high/max`; the real set has no `default`, it has `off`.)
+ *
+ * The labels are what this console calls them. They are a load ladder because
+ * that is exactly what the control trades: more reasoning effort is more compute
+ * spent per answer, so the four steps are named the way a machine's load is
+ * named — no load, light, heavy, full.
  */
 const LOAD_STOPS = [
-  { id: 'default', label: '自适应', load: 0.25 },
-  { id: 'low', label: '轻载', load: 0.45 },
-  { id: 'high', label: '重载', load: 0.75 },
+  { id: 'off', label: '空载', load: 0.08 },
+  { id: 'low', label: '轻载', load: 0.4 },
+  { id: 'high', label: '重载', load: 0.72 },
   { id: 'max', label: '满载', load: 1 },
 ]
+
+/**
+ * How each detent is spelled in the harness's own effort submenu.
+ *
+ * Matched against the option's text, so the drive works in either language and
+ * does not depend on the skin knowing the app's internals beyond the label.
+ */
+const EFFORT_NAMES = {
+  off: ['Off', '关闭', '空载', '无'],
+  low: ['Low', '低', '轻载'],
+  high: ['High', '高', '重载'],
+  max: ['Max', '最高', '满载'],
+}
 
 /**
  * Mount the console inside the composer.
@@ -246,6 +263,24 @@ function mountDialogConsole() {
   /* ── attachment ────────────────────────────────────────────────────── */
 
   let cancelled = false
+
+  /**
+   * Await a step, cancellably. Keys on disposal only — never on connectivity.
+   *
+   * Declared here rather than beside the boot sequence because the rheostat's
+   * apply path uses it too, and a `const` used before its declaration is a
+   * temporal-dead-zone throw — silent here, since the promise that would carry
+   * it is deliberately not awaited.
+   */
+  const sleep = (ms) =>
+    new Promise((resolve) => {
+      const timer = window.setTimeout(resolve, ms)
+      if (cancelled) {
+        window.clearTimeout(timer)
+        resolve()
+      }
+    })
+
   const card = () => document.querySelector('[data-composer-card]')
   /** The app's trailing group, which the row pushes to its right edge. */
   const trailingGroup = (host) => host.querySelector('[class*="_trailing"]')
@@ -271,21 +306,25 @@ function mountDialogConsole() {
   }
 
   /**
-   * Mark the app's own reasoning-effort group so the stylesheet can hide it.
+   * Mark the app's own reasoning-effort cell so the stylesheet can hide it.
    *
    * The rheostat REPLACES that control, so it must not also be offered in the
    * model dropdown — two controls for one setting is worse than either alone.
-   * The group is only hidden, never removed: the option buttons inside it are
-   * exactly what `applyToApp` clicks to set the level for real, and a
-   * `display:none` button is still clickable.
+   *
+   * The effort picker is a CELL in the model menu (`模型` / `推理等级`), not a
+   * group, and not a flat list: it opens a submenu. The first version of this
+   * looked for a `_7KE1Ra_group` with a `_groupTitle` — a structure this build
+   * does not have — so it marked nothing and hid nothing, while reporting
+   * success. It now finds the cell by its own label.
+   *
+   * Hidden, never removed: the cell is what the console clicks to reach the real
+   * level options, and a `display:none` element is still clickable.
    */
-  function markEffortGroup() {
-    const keywords = ['思考', '推理', '努力', 'Effort', 'Reasoning', 'Thinking']
-    for (const group of document.querySelectorAll('[class*="_7KE1Ra_group"]')) {
-      if (group.hasAttribute('data-550c-effort')) continue
-      const title = (group.querySelector('[class*="_groupTitle"]')?.textContent ?? '').trim()
-      if (title === '') continue
-      if (keywords.some((keyword) => title.includes(keyword))) group.setAttribute('data-550c-effort', '')
+  function markEffortCell() {
+    for (const cell of document.querySelectorAll('[class*="_7KE1Ra_cell"]')) {
+      if (cell.hasAttribute('data-550c-effort')) continue
+      const label = (cell.querySelector('[class*="_cellLabel"]')?.textContent ?? '').trim()
+      if (/推理|等级|Effort|Reasoning/i.test(label)) cell.setAttribute('data-550c-effort', '')
     }
   }
 
@@ -316,7 +355,7 @@ function mountDialogConsole() {
       host.appendChild(load)
     }
 
-    markEffortGroup()
+    markEffortCell()
     return true
   }
 
@@ -428,45 +467,133 @@ function mountDialogConsole() {
   let driving = false
 
   /**
-   * Apply the chosen level to the app's own reasoning-effort control.
+   * The level the console is trying to set, and whether a drive is in flight.
    *
-   * There is no service for this — the harness exposes model and effort
-   * selection only through its own dropdown, and its options are plain buttons.
-   * So the console drives that control the way a user would: open the trigger,
-   * click the option matching the level, and let the app do the rest. Best-effort
-   * by design: if the shape has changed, the console still reads correctly, it
-   * simply cannot set the value.
+   * Drives are SERIALISED, and this is not a refinement — it is a correctness
+   * fix. Each drive opens the app's menus, clicks through them and closes them
+   * again, so two running at once fight over the same popovers. Dragging the
+   * fader or holding an arrow key fires a change per step, which started a drive
+   * per step: three quick steps to `满载` left the harness on `Low`, and four
+   * back to `空载` left it on `High` — the app was being set to a level nobody
+   * asked for, by whichever drive happened to click last.
    *
-   * @returns whether an option was found and clicked.
+   * With one loop and a single pending target, rapid changes coalesce: the
+   * intermediate levels are skipped and the harness ends on the one you stopped
+   * at, which is the only outcome that matters.
    */
-  function applyToApp(stop) {
+  let pendingLevel = null
+  let applying = false
+
+  async function applyLevel(stop) {
+    pendingLevel = stop
+    if (applying) return
+    applying = true
+    try {
+      while (pendingLevel !== null && !cancelled) {
+        const target = pendingLevel
+        pendingLevel = null
+        await driveApp(target)
+      }
+    } finally {
+      applying = false
+    }
+  }
+
+  /**
+   * Poll for a node until it appears, or give up.
+   *
+   * The harness's menus render a frame or two after the click that opens them,
+   * so every step of the drive has to wait rather than query immediately.
+   */
+  async function waitFor(find) {
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      const found = find()
+      if (found !== null) return found
+      await sleep(20)
+    }
+    return null
+  }
+
+  /**
+   * Drive the harness's own reasoning-effort control to one level.
+   *
+   * There is no service for this — model and effort selection are exposed only
+   * through the app's own menus — so the console drives them the way a user
+   * would. It is a TWO-STEP path, which is what an earlier version got wrong:
+   * the model menu holds a `推理等级` cell that opens a SUBMENU, and the real
+   * level options (`Off`/`Low`/`High`/`Max`) live in that submenu. Matching
+   * option text against the model menu found nothing, so every detent painted
+   * correctly while the harness's effort never changed at all.
+   *
+   * Two things make it reliable, and both were earned:
+   *
+   *   - it RESETS first, closing whatever a previous drive left open. Without
+   *     that, a drive that started while the menus were mid-transition clicked
+   *     into a stale tree and the level silently did not take.
+   *   - it VERIFIES against the harness's own effort label and retries once.
+   *     The check reads the app's state, not ours, so it cannot pass by the
+   *     console simply agreeing with itself.
+   *
+   * Best-effort by design: if the shape has changed, the console still reads
+   * correctly, it simply cannot set the value.
+   *
+   * @returns a promise of whether the harness ended on the requested level.
+   */
+  async function driveApp(stop) {
     const trigger = document.querySelector('[class*="_7KE1Ra_trigger"]')
     if (trigger === null) return false
+    const wanted = EFFORT_NAMES[stop.id] ?? []
+
+    /** What the harness itself says the level is, hidden or not. */
+    const appLabel = () =>
+      (document.querySelector('[class*="_7KE1Ra_triggerEffort"]')?.textContent ?? '').trim()
+
     driving = true
     try {
-      trigger.click()
-      let clicked = false
-      const options = document.querySelectorAll('[class*="_7KE1Ra_"] button, [role="menuitem"]')
-      for (const option of options) {
-        const text = (option.textContent ?? '').trim()
-        if (text === '') continue
-        // Match the harness's own names for the level, in either language.
-        const wanted = {
-          default: ['默认', 'Default', '自适应'],
-          low: ['低', 'Low', '轻载'],
-          high: ['高', 'High', '重载'],
-          max: ['最高', 'Max', '满载'],
-        }[stop.id] ?? []
-        if (wanted.some((candidate) => text.includes(candidate))) {
-          option.click()
-          clicked = true
-          break
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        // Start from a known state.
+        document.body.click()
+        await sleep(60)
+
+        // Step 1: open the model menu and find the effort cell by its label.
+        trigger.click()
+        const cell = await waitFor(() => {
+          for (const candidate of document.querySelectorAll('[class*="_7KE1Ra_cell"]')) {
+            const label = (candidate.querySelector('[class*="_cellLabel"]')?.textContent ?? '').trim()
+            if (/推理|等级|Effort|Reasoning/i.test(label)) return candidate
+          }
+          return null
+        })
+        if (cell === null) {
+          document.body.click()
+          return false
         }
+
+        // Step 2: open its submenu and click the matching level. Exact match
+        // first, so `Off` cannot be satisfied by a longer label containing it.
+        cell.click()
+        const option = await waitFor(() => {
+          const options = Array.from(document.querySelectorAll('[class*="_7KE1Ra_option"], [role="menuitemradio"]'))
+          const texts = options.map((candidate) => (candidate.textContent ?? '').trim())
+          for (const name of wanted) {
+            const exact = texts.indexOf(name)
+            if (exact !== -1) return options[exact]
+          }
+          for (const name of wanted) {
+            const partial = texts.findIndex((text) => text.includes(name))
+            if (partial !== -1) return options[partial]
+          }
+          return null
+        })
+        if (option !== null) option.click()
+        await sleep(90)
+        // Close the menus: leaving them open would cover the composer. The guard
+        // keeps this from also dismissing our own panel.
+        document.body.click()
+
+        if (wanted.some((name) => appLabel() === name || appLabel().includes(name))) return true
       }
-      // Close the app's dropdown either way: leaving it open would cover the
-      // composer. The guard keeps this from also dismissing our own panel.
-      document.body.click()
-      return clicked
+      return false
     } finally {
       driving = false
     }
@@ -475,7 +602,10 @@ function mountDialogConsole() {
   function select(next, apply) {
     index = Math.max(0, Math.min(LOAD_STOPS.length - 1, next))
     paint()
-    if (apply === true) applyToApp(LOAD_STOPS[index])
+    // Not awaited: the detent should move under the hand, and setting the app's
+    // value takes a few frames while its menus render. `applyLevel` serialises
+    // those drives, so dragging does not start one per step.
+    if (apply === true) void applyLevel(LOAD_STOPS[index])
   }
 
   loadTrigger.addEventListener('click', (event) => {
@@ -543,16 +673,6 @@ function mountDialogConsole() {
   paint()
 
   /* ── the boot ──────────────────────────────────────────────────────── */
-
-  /** Await a step, cancellably. Keys on disposal only — never on connectivity. */
-  const sleep = (ms) =>
-    new Promise((resolve) => {
-      const timer = window.setTimeout(resolve, ms)
-      if (cancelled) {
-        window.clearTimeout(timer)
-        resolve()
-      }
-    })
 
   async function boot() {
     // Wait for the shell to render a composer; the sequence is short and

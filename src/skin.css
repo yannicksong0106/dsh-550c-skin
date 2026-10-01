@@ -689,16 +689,19 @@ html[data-550c] .c-load-now {
   transition: color 0.25s linear, text-shadow 0.25s linear;
 }
 
-/* The panel: rounded, glowing, no hard frame. */
+/* The panel: rounded, glowing, no hard frame.
+   Anchored by its RIGHT edge to the trigger, so it opens up and to the LEFT. The
+   control sits at the right end of the composer, and a centred panel reached far
+   enough right to cover the session and state readouts in the header — a
+   transient popover should not hide the thing it is reporting on. */
 html[data-550c] .c-load-panel {
   position: absolute;
   bottom: calc(100% + 10px);
-  left: 50%;
+  right: 0;
   z-index: 40;
   box-sizing: border-box;
   width: 252px;
   padding: 12px 14px 11px;
-  transform: translateX(-50%);
   border-radius: 12px;
   background: var(--c-bg-win);
   box-shadow: 0 0 0 1px rgba(var(--c-glow-rgb), 0.22), inset 0 0 26px rgba(var(--c-glow-rgb), 0.07),
