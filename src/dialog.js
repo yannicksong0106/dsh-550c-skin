@@ -213,34 +213,19 @@ function mountDialogConsole() {
   // a 550C logotype says the same thing twice.
   header.append(mark, tps, session, state)
 
-  /* ── the compute-load rheostat ─────────────────────────────────────── */
+  /* ── the compute-load rheostat, laid out in the control row's middle ── */
 
-  /* The control, not the readout: it belongs with the app's own controls, and it
-     sits immediately to the LEFT of the model selector because the two describe
-     the same thing — which model, and how hard it is being driven. */
+  /* INLINE AND ALWAYS LIVE. No trigger, no popover, nothing to open: the control
+     row already has a wide empty middle, and a fader you can see and grab at any
+     moment is the entire point of a rheostat — a control you must open first is
+     a menu, not a fader. Removing the popover also removed its dismissal
+     handling, its panel styling and its own markup, which is less machinery for
+     the same job. */
   const load = document.createElement('div')
-  load.className = 'c-rig-load'
-  const loadTrigger = document.createElement('button')
-  loadTrigger.type = 'button'
-  loadTrigger.className = 'c-load-trigger'
+  load.className = 'c-load'
   const loadKey = document.createElement('span')
-  loadKey.className = 'c-rig-key'
+  loadKey.className = 'c-load-key'
   loadKey.textContent = '算力荷载'
-  const loadNow = document.createElement('span')
-  loadNow.className = 'c-load-now'
-  loadTrigger.append(loadKey, loadNow)
-
-  const panel = document.createElement('div')
-  panel.className = 'c-load-panel'
-  panel.hidden = true
-  const panelHead = document.createElement('div')
-  panelHead.className = 'c-load-head'
-  const panelTitle = document.createElement('span')
-  panelTitle.className = 'c-load-title'
-  panelTitle.textContent = '算力荷载'
-  const panelRead = document.createElement('span')
-  panelRead.className = 'c-load-read'
-  panelHead.append(panelTitle, panelRead)
 
   const track = document.createElement('div')
   track.className = 'c-load-track'
@@ -248,17 +233,23 @@ function mountDialogConsole() {
   track.setAttribute('aria-label', '算力荷载')
   track.setAttribute('aria-valuemin', '0')
   track.setAttribute('aria-valuemax', String(LOAD_STOPS.length - 1))
+  track.tabIndex = 0
+
+  // The track is a LATTICE of dense slanted squares, and the lit portion is the
+  // same lattice in the accent — so the load reads as a lit run of the texture
+  // rather than as a fill level on a plain rail.
+  const lattice = document.createElement('div')
+  lattice.className = 'c-load-lattice'
   const fill = document.createElement('div')
   fill.className = 'c-load-fill'
   const thumb = document.createElement('div')
   thumb.className = 'c-load-thumb'
-  track.append(fill, thumb)
+  track.append(lattice, fill, thumb)
 
-  const ticks = document.createElement('div')
-  ticks.className = 'c-load-ticks'
+  const loadNow = document.createElement('span')
+  loadNow.className = 'c-load-now'
 
-  panel.append(panelHead, track, ticks)
-  load.append(loadTrigger, panel)
+  load.append(loadKey, track, loadNow)
 
   /* ── attachment ────────────────────────────────────────────────────── */
 
@@ -284,26 +275,6 @@ function mountDialogConsole() {
   const card = () => document.querySelector('[data-composer-card]')
   /** The app's trailing group, which the row pushes to its right edge. */
   const trailingGroup = (host) => host.querySelector('[class*="_trailing"]')
-
-  /**
-   * The trailing group's direct child that CONTAINS the model selector.
-   *
-   * The rheostat goes immediately before this, which is what makes it abut the
-   * model control. The model's own root class is not a direct child of the
-   * trailing group — it sits inside an unclassed wrapper — so anchoring on the
-   * root class directly made the check fail and the insertion fell back to a
-   * card-level append, landing the control at the bottom of the dialog box.
-   * Walking up to the group's own child is what makes the anchor reliable
-   * without depending on wrapper class names the app is free to change.
-   */
-  function modelAnchor(host) {
-    const trailing = trailingGroup(host)
-    const model = host.querySelector('[class*="_7KE1Ra_root"]')
-    if (trailing === null || model === null) return null
-    let node = model
-    while (node.parentElement !== null && node.parentElement !== trailing) node = node.parentElement
-    return node.parentElement === trailing ? node : null
-  }
 
   /**
    * Mark the app's own reasoning-effort cell so the stylesheet can hide it.
@@ -336,23 +307,15 @@ function mountDialogConsole() {
     // throughput bar, so there is no separate meter row to place.
     if (header.parentElement !== host) host.insertBefore(header, host.firstChild)
 
-    // The rheostat immediately to the left of the model selector, inside the
-    // app's own trailing group — adjacent to the control it belongs with, rather
-    // than floating in the middle of the row.
-    const anchor = modelAnchor(host)
-    if (anchor !== null) {
-      if (load.parentElement !== anchor.parentElement || load.nextElementSibling !== anchor) {
-        anchor.parentElement.insertBefore(load, anchor)
-      }
-      // Butt it right up against the model control. The group's own flex gap is
-      // what holds the app's controls apart, and it applies to the rheostat too;
-      // cancelling it on THIS element is the one way to close the seam without
-      // setting a layout property on an element the app owns. The gap is read
-      // rather than hard-coded, so a change to the app's spacing follows.
-      const gap = getComputedStyle(anchor.parentElement).columnGap
-      load.style.marginRight = gap === 'normal' || gap === '' ? '0' : '-' + gap
-    } else if (load.parentElement !== host) {
-      host.appendChild(load)
+    // The rheostat fills the CONTROL ROW'S MIDDLE: between the app's tools group
+    // and its trailing group, which is exactly where the row has empty space and
+    // where the user asked for it. It is one more flex item in the app's own row,
+    // never an overlay on it.
+    const row = host.querySelector('[class*="_row"]')
+    if (row !== null && load.parentElement !== row) {
+      const trailing = trailingGroup(host)
+      if (trailing !== null && trailing.parentElement === row) row.insertBefore(load, trailing)
+      else row.appendChild(load)
     }
 
     markEffortCell()
@@ -426,16 +389,18 @@ function mountDialogConsole() {
 
   let index = 0
 
-  /** Paint the panel, the track, the trigger and the readout for one detent. */
+  /** Paint the fader and its readout for one detent. */
   function paint() {
     const stop = LOAD_STOPS[index]
     const fraction = stop.load
 
     loadNow.textContent = stop.label
-    panelRead.textContent = stop.label
-    // The reading carries the load as a percentage as well as a name: the name is
-    // the detent, the figure is what the detent costs.
-    panelRead.setAttribute('data-550c-load', String(Math.round(fraction * 100)))
+    // The percentage is carried on the slider itself rather than printed, so the
+    // row stays quiet while the value is still available to anything that reads
+    // the DOM.
+    track.setAttribute('aria-valuenow', String(index))
+    track.setAttribute('aria-valuetext', stop.label)
+    load.setAttribute('data-550c-load', String(Math.round(fraction * 100)))
 
     fill.style.width = Math.round(fraction * 100) + '%'
     thumb.style.left = Math.round(fraction * 100) + '%'
@@ -443,26 +408,16 @@ function mountDialogConsole() {
     // pulse off, so "how loaded is it" is expressed once, in the DOM, and the
     // CSS owns every visual consequence.
     const level = fraction >= 0.9 ? 'max' : fraction >= 0.6 ? 'high' : fraction >= 0.4 ? 'mid' : 'low'
-    for (const node of [load, panel, track]) node.setAttribute('data-550c-level', level)
-
-    // Detent ticks: the one you are on is marked, so the control reads as a
-    // stepped rheostat rather than a continuous fader.
-    ticks.replaceChildren()
-    for (let position = 0; position < LOAD_STOPS.length; position += 1) {
-      const tick = document.createElement('span')
-      tick.className = 'c-load-tick' + (position === index ? ' is-on' : '')
-      tick.textContent = LOAD_STOPS[position].label
-      ticks.appendChild(tick)
-    }
+    for (const node of [load, track]) node.setAttribute('data-550c-level', level)
   }
 
   /**
-   * True while the console is driving the app's own dropdown.
+   * True while the console is driving the app's own menus.
    *
-   * Applying a level means clicking the app's effort option, and the app closes
-   * its dropdown on an outside click — which is a click on the document, which
-   * is also what dismisses this console's panel. Without this guard, setting a
-   * level slammed the panel shut under the user's hand.
+   * Applying a level means opening the app's model menu, stepping into its effort
+   * submenu and clicking an option. The app closes those menus on an outside
+   * click, so a drive must not be interrupted by one — and while it runs, the
+   * console must not treat the clicks it makes as user input either.
    */
   let driving = false
 
@@ -534,6 +489,13 @@ function mountDialogConsole() {
    *     The check reads the app's state, not ours, so it cannot pass by the
    *     console simply agreeing with itself.
    *
+   * And one thing makes it INVISIBLE. The menus have to be opened for the option
+   * buttons to exist, but they must not be seen: every move of the fader used to
+   * flash the effort picker open and shut under the user's hand. A marker on
+   * `<html>` hides the menu for the duration of the drive while leaving it fully
+   * built and clickable, and is removed in the `finally` so a thrown error can
+   * never leave the app's own menu permanently invisible.
+   *
    * Best-effort by design: if the shape has changed, the console still reads
    * correctly, it simply cannot set the value.
    *
@@ -549,6 +511,7 @@ function mountDialogConsole() {
       (document.querySelector('[class*="_7KE1Ra_triggerEffort"]')?.textContent ?? '').trim()
 
     driving = true
+    document.documentElement.setAttribute('data-550c-driving', '')
     try {
       for (let attempt = 0; attempt < 2; attempt += 1) {
         // Start from a known state.
@@ -587,14 +550,16 @@ function mountDialogConsole() {
         })
         if (option !== null) option.click()
         await sleep(90)
-        // Close the menus: leaving them open would cover the composer. The guard
-        // keeps this from also dismissing our own panel.
+        // Close the menus: leaving them open would cover the composer.
         document.body.click()
 
         if (wanted.some((name) => appLabel() === name || appLabel().includes(name))) return true
       }
       return false
     } finally {
+      // The marker must come off whatever happens, or the app's own menu would
+      // stay invisible for the rest of the session.
+      document.documentElement.removeAttribute('data-550c-driving')
       driving = false
     }
   }
@@ -608,11 +573,8 @@ function mountDialogConsole() {
     if (apply === true) void applyLevel(LOAD_STOPS[index])
   }
 
-  loadTrigger.addEventListener('click', (event) => {
-    event.stopPropagation()
-    panel.hidden = !panel.hidden
-    if (!panel.hidden) paint()
-  })
+  // No trigger and no panel to open or dismiss: the fader is always on screen,
+  // so the only handlers it needs are the ones that move it.
 
   // Pointer handling on the track: press and drag, which is what a rheostat is.
   // Snapping to detents on release keeps the control honest to the four levels
@@ -649,7 +611,6 @@ function mountDialogConsole() {
   })
 
   // Keyboard, so the control is not mouse-only.
-  track.tabIndex = 0
   track.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowLeft') {
       event.preventDefault()
@@ -660,15 +621,6 @@ function mountDialogConsole() {
       select(index + 1, true)
     }
   })
-
-  // Dismiss the panel by clicking anywhere else — but not when the click is part
-  // of driving the app's dropdown, and not when it is inside the console itself.
-  const onDocumentClick = (event) => {
-    if (driving) return
-    if (event.target instanceof Element && (load.contains(event.target) || event.target === track)) return
-    if (!panel.hidden) panel.hidden = true
-  }
-  document.addEventListener('click', onDocumentClick)
 
   paint()
 
@@ -705,7 +657,10 @@ function mountDialogConsole() {
     cancelled = true
     window.clearInterval(tpsTimer)
     observer.disconnect()
-    document.removeEventListener('click', onDocumentClick)
+    // A drive may still be in flight when the skin is switched off, so the
+    // invisibility marker is cleared here too — otherwise the app's own menu
+    // would stay hidden after the console is gone.
+    document.documentElement.removeAttribute('data-550c-driving')
     // The meter lives inside the header, so removing the header takes it too.
     header.remove()
     load.remove()
