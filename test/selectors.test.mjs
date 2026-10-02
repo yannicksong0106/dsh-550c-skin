@@ -181,19 +181,39 @@ test('the skin never depends on a hashed class name', (t) => {
     return
   }
   // A hash is per-build. Matching one would work today and break on the next DSH
-  // release, which is the failure this project most wants to avoid.
-  const css = readFileSync(new URL('../src/skin.css', import.meta.url), 'utf8')
+  // release — and worse, it breaks on a DIFFERENT BUILD of the same release.
+  //
+  // THIS CHECK MISSED THE BUG IT EXISTS FOR, twice over:
+  //
+  //   - it read only `src/skin.css`. The rheostat's drive lives in
+  //     `src/dialog.js`, and every selector it uses carried a hash;
+  //   - its hash extraction split on `_` from the front, so a class spelled
+  //     `_7KE1Ra_triggerEffort` yielded the empty string and contributed no hash
+  //     at all. The very shape the skin used was invisible to the check.
+  //
+  // The desktop app ships a different build from the web profile's node_modules
+  // (`wq12jW_triggerEffort` versus `_7KE1Ra_triggerEffort`), which is how a
+  // stylesheet and a drive that both passed every test did nothing at all there.
   const hashes = new Set()
   for (const name of classNames) {
-    const hash = name.split('_')[0]
+    const bare = name.replace(/^_+/, '')
+    const hash = bare.split('_')[0]
     if (/^[A-Za-z0-9+-]{4,}$/.test(hash) && /[A-Z0-9]/.test(hash)) hashes.add(hash)
   }
+
   const offenders = []
-  for (const match of css.matchAll(/\[class[*^$]?=\s*'([^']+)'/g)) {
-    const needle = match[1].replace(/^\./, '')
-    for (const hash of hashes) {
-      if (needle.startsWith(hash)) offenders.push(needle)
+  for (const relative of ['../src/skin.css', '../src/dialog.js']) {
+    const source = readFileSync(new URL(relative, import.meta.url), 'utf8')
+    // Comments talk ABOUT the hashes — several of them exist to explain this very
+    // bug — so they are stripped before the selectors are read.
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ')
+    for (const match of code.matchAll(/\[class[*^$]?=\s*['"]([^'"]+)['"]/g)) {
+      const needle = match[1].replace(/^\./, '')
+      const bare = needle.replace(/^_+/, '')
+      for (const hash of hashes) {
+        if (bare.startsWith(hash)) offenders.push(relative + ': ' + needle)
+      }
     }
   }
-  assert.deepEqual(offenders, [], 'hashed class names in the stylesheet:\n  ' + offenders.join('\n  '))
+  assert.deepEqual(offenders, [], 'hashed class names in selectors:\n  ' + offenders.join('\n  '))
 })

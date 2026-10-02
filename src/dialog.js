@@ -278,6 +278,10 @@ function mountDialogConsole() {
   track.setAttribute('aria-label', '算力荷载')
   track.setAttribute('aria-valuemin', '0')
   track.setAttribute('aria-valuemax', String(LOAD_STOPS.length - 1))
+  // Stated from the start rather than only when it changes: a slider that never
+  // says whether it is enabled leaves the reader guessing, and `setUnavailable`
+  // would otherwise be the first thing to write this attribute at all.
+  track.setAttribute('aria-disabled', 'false')
   track.tabIndex = 0
 
   // The track is a run of DENSE NARROW SLANTED BLOCKS, lit left to right, so the
@@ -347,11 +351,20 @@ function mountDialogConsole() {
    * does not have — so it marked nothing and hid nothing, while reporting
    * success. It now finds the cell by its own label.
    *
+   * SELECTORS USE THE LOCAL NAME ONLY, NEVER THE HASH IN FRONT OF IT. `_7KE1Ra`
+   * was the web profile's build hash; the DESKTOP app ships a different build
+   * (its asar spells the same classes `wq12jW_triggerEffort`, `LOs-Za_cell`) and
+   * `_7KE1Ra_` appears in it zero times. So on the desktop every one of these
+   * selectors matched nothing: the effort cell was never marked, stayed visible
+   * in the menu next to the fader that had supposedly replaced it, and the drive
+   * could not find the trigger either — while the console went on painting a
+   * level. The hash changes per build; the local name does not.
+   *
    * Hidden, never removed: the cell is what the console clicks to reach the real
    * level options, and a `display:none` element is still clickable.
    */
   function markEffortCell() {
-    for (const cell of document.querySelectorAll('[class*="_7KE1Ra_cell"]')) {
+    for (const cell of document.querySelectorAll('[class*="_cell"]')) {
       if (cell.hasAttribute('data-550c-effort')) continue
       const label = (cell.querySelector('[class*="_cellLabel"]')?.textContent ?? '').trim()
       if (/推理|等级|Effort|Reasoning/i.test(label)) cell.setAttribute('data-550c-effort', '')
@@ -573,6 +586,49 @@ function mountDialogConsole() {
   let driveSettledUntil = 0
 
   /**
+   * True when the harness offers no reasoning-effort setting for this model.
+   *
+   * `ModelSelect` renders its effort suffix only when the model HAS one
+   * (`effortLabel !== void 0 && <span className={triggerEffort}>`), so an absent
+   * suffix is the app's own way of saying there is nothing to choose. Without
+   * this the fader stayed fully interactive on such a model and went on painting
+   * 空载 / 轻载 / 重载 / 满载 — four levels of a setting that does not exist, and
+   * a drag that silently did nothing. Same lie as the mount bug, one layer down.
+   *
+   * Declared unavailable only after the model trigger has been up for
+   * `EFFORT_ABSENT_TICKS` consecutive samples without a suffix, because during
+   * boot the composer exists before the trigger renders and a single miss would
+   * flash "not applicable" over a control that is about to appear.
+   */
+  let unavailable = false
+  let absentStreak = 0
+
+  /** How many 250ms samples of "trigger up, no suffix" before it is believed. */
+  const EFFORT_ABSENT_TICKS = 8
+
+  /**
+   * Paint the unavailable state, or come back from it.
+   *
+   * The track keeps its place — the row is the app's layout and this control's
+   * own furniture lives inside it — but it stops being a control: no lit blocks,
+   * no handle, `aria-disabled`, and the readout says what is true rather than
+   * naming a level.
+   */
+  function setUnavailable(flag) {
+    unavailable = flag
+    track.setAttribute('aria-disabled', flag ? 'true' : 'false')
+    if (flag) {
+      load.setAttribute('data-550c-unavailable', '')
+      loadNow.textContent = '不适用'
+      for (const cell of cellNodes) cell.setAttribute('data-lit', '0')
+      thumb.style.left = '0%'
+    } else {
+      load.removeAttribute('data-550c-unavailable')
+      paint()
+    }
+  }
+
+  /**
    * The harness's own effort level, read back as one of our detents.
    *
    * The fader used to start at index 0 and never look at the app, so a page that
@@ -581,15 +637,16 @@ function mountDialogConsole() {
    * control that reports a level the app is not at reads as a control that does
    * nothing, which is how it was reported.
    *
-   * The label lives on `[class*="_7KE1Ra_triggerEffort"]`, the app's own effort
-   * suffix on the model trigger. The skin hides that node (the fader replaces
-   * it), and a hidden node still holds its text, so this reads the app's state
-   * without the user seeing the level stated twice.
+   * The label lives on `[class*="_triggerEffort"]`, the app's own effort suffix
+   * on the model trigger. The skin hides that node (the fader replaces it), and a
+   * hidden node still holds its text, so this reads the app's state without the
+   * user seeing the level stated twice. The local name only — never the build
+   * hash in front of it, for the reason spelled out in `markEffortCell`.
    *
    * @returns {number|null} index into `LOAD_STOPS`, or null when unreadable.
    */
   function appEffortIndex() {
-    const label = (document.querySelector('[class*="_7KE1Ra_triggerEffort"]')?.textContent ?? '').trim()
+    const label = (document.querySelector('[class*="_triggerEffort"]')?.textContent ?? '').trim()
     if (label === '') return null
     for (let position = 0; position < LOAD_STOPS.length; position += 1) {
       const names = EFFORT_NAMES[LOAD_STOPS[position].id] ?? []
@@ -613,6 +670,24 @@ function mountDialogConsole() {
    */
   function syncFromApp() {
     if (driving) return
+
+    // Availability first: a model without an effort setting has no suffix, and
+    // the fader has to stop offering one. The model trigger is found by its own
+    // role — `button[aria-haspopup="menu"]` inside the composer — because the
+    // suffix that normally leads us to it is exactly what is missing here.
+    const suffixPresent = document.querySelector('[class*="_triggerEffort"]') !== null
+    if (!suffixPresent) {
+      const host = card()
+      const trigger = host === null ? null : host.querySelector('button[aria-haspopup="menu"]')
+      if (trigger !== null) {
+        absentStreak += 1
+        if (absentStreak >= EFFORT_ABSENT_TICKS && !unavailable) setUnavailable(true)
+      }
+      return
+    }
+    absentStreak = 0
+    if (unavailable) setUnavailable(false)
+
     if (Date.now() < driveSettledUntil) return
     const position = appEffortIndex()
     if (position === null || position === index) return
@@ -739,13 +814,19 @@ function mountDialogConsole() {
    * @returns a promise of whether the harness ended on the requested level.
    */
   async function driveApp(stop) {
-    const trigger = document.querySelector('[class*="_7KE1Ra_trigger"]')
+    // The trigger is found STRUCTURALLY, from the effort suffix outwards: the
+    // suffix is the trigger button's own child, so its parent IS the control that
+    // opens the model menu. Naming the trigger by its class would need the build
+    // hash (see `markEffortCell`), and `closest('[class*="_trigger"]')` cannot be
+    // used here at all — the suffix itself carries `_triggerEffort`, so it matches
+    // its own selector and `closest` would return the span.
+    const suffix = document.querySelector('[class*="_triggerEffort"]')
+    const trigger = suffix === null ? null : suffix.closest('button')
     if (trigger === null) return false
     const wanted = EFFORT_NAMES[stop.id] ?? []
 
     /** What the harness itself says the level is, hidden or not. */
-    const appLabel = () =>
-      (document.querySelector('[class*="_7KE1Ra_triggerEffort"]')?.textContent ?? '').trim()
+    const appLabel = () => (document.querySelector('[class*="_triggerEffort"]')?.textContent ?? '').trim()
 
     driving = true
     document.documentElement.setAttribute('data-550c-driving', '')
@@ -758,7 +839,7 @@ function mountDialogConsole() {
         // Step 1: open the model menu and find the effort cell by its label.
         trigger.click()
         const cell = await waitFor(() => {
-          for (const candidate of document.querySelectorAll('[class*="_7KE1Ra_cell"]')) {
+          for (const candidate of document.querySelectorAll('[class*="_cell"]')) {
             const label = (candidate.querySelector('[class*="_cellLabel"]')?.textContent ?? '').trim()
             if (/推理|等级|Effort|Reasoning/i.test(label)) return candidate
           }
@@ -773,7 +854,7 @@ function mountDialogConsole() {
         // first, so `Off` cannot be satisfied by a longer label containing it.
         cell.click()
         const option = await waitFor(() => {
-          const options = Array.from(document.querySelectorAll('[class*="_7KE1Ra_option"], [role="menuitemradio"]'))
+          const options = Array.from(document.querySelectorAll('[class*="_option"], [role="menuitemradio"]'))
           const texts = options.map((candidate) => (candidate.textContent ?? '').trim())
           for (const name of wanted) {
             const exact = texts.indexOf(name)
@@ -806,6 +887,10 @@ function mountDialogConsole() {
   }
 
   function select(next, apply) {
+    // A control for a setting this model does not have must not move: painting a
+    // detent would state a level the harness is not at, which is the whole bug
+    // this state exists to avoid.
+    if (unavailable) return
     index = Math.max(0, Math.min(LOAD_STOPS.length - 1, next))
     paint()
     // Not awaited: the detent should move under the hand, and setting the app's
@@ -838,6 +923,7 @@ function mountDialogConsole() {
   }
 
   track.addEventListener('pointerdown', (event) => {
+    if (unavailable) return
     event.preventDefault()
     track.setPointerCapture(event.pointerId)
     select(trackIndexAt(event.clientX), false)
@@ -853,6 +939,7 @@ function mountDialogConsole() {
 
   // Keyboard, so the control is not mouse-only.
   track.addEventListener('keydown', (event) => {
+    if (unavailable) return
     if (event.key === 'ArrowLeft') {
       event.preventDefault()
       select(index - 1, true)

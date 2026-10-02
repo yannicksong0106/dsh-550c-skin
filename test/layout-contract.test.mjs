@@ -227,7 +227,7 @@ test('every layout exemption is marked and counted', () => {
   assert.equal(exempt.length, 2, 'expected exactly two marked exemptions')
   const selectors = exempt.map((rule) => rule.selector).join('\n')
   assert.match(selectors, /_placeholder/, 'the cursor exemption must still be present')
-  assert.match(selectors, /_7KE1Ra_triggerEffort/, 'the effort-picker exemption must still be present')
+  assert.match(selectors, /_triggerEffort/, 'the effort-picker exemption must still be present')
   for (const rule of exempt) {
     // An exemption must be for a pseudo-element or a hidden node, never for a
     // real element that is expected to keep its box.

@@ -365,6 +365,81 @@ three left   空载  → app Off
 checks: 5/5 PASS   verdict: PASS
 ```
 
+## 桌面端：hash 是按构建变的，本地名不是
+
+桌面端上「明明有变阻器，模型菜单里却还留着推理等级」，而网页端是好的。
+
+原因不在逻辑，在**选择器**。皮肤所有跟应用有关的类名都写成 `[class*="_7KE1Ra_xxx"]`——
+`_7KE1Ra` 是**网页端那次构建**的 CSS-module hash。桌面端跑的是另一份构建：
+
+```
+桌面 app.asar 里的类映射：
+  triggerEffort → wq12jW_triggerEffort
+  cell          → LOs-Za_cell
+  option        → mAtvLq_option
+  menu          → oXE0lW_menu
+整个 asar 里 "_7KE1Ra_" 出现 0 次。
+```
+
+于是桌面端上：`markEffortCell()` 什么都没标 → 菜单里的推理等级照旧显示；
+`driveApp()` 找不到触发器 → 变阻器照旧画着档位却什么也设不了。
+
+**这正是项目自己在 `src/skin.css` 顶部写下的规矩**（「hash 会随 DSH 构建变化，本地名不会」），
+只是 dialog.js 没有遵守。
+
+修法是全部改成**只用本地名**，并且把找触发器的方式改成结构式而不是命名式：
+
+```js
+// 后缀就是触发器按钮的子节点，所以它的父级就是打开模型菜单的那个控件。
+// 不能用 closest('[class*="_trigger"]') —— 后缀自己的类里就含 _triggerEffort，
+// 它会匹配到自己，closest 返回的是那个 span。
+const suffix = document.querySelector('[class*="_triggerEffort"]')
+const trigger = suffix === null ? null : suffix.closest('button')
+```
+
+### 那条本该抓住它的检查，两次都没抓住
+
+`test/selectors.test.mjs` 里就有「皮肤不得依赖 hash 类名」这一条。它漏掉是因为：
+
+1. **只读了 `src/skin.css`**，而驱动逻辑全在 `src/dialog.js` 里；
+2. **hash 提取是从头按 `_` 切的**，`_7KE1Ra_triggerEffort` 切出来第一段是空串，
+   于是这个形状的类名**根本不在被检查的 hash 集合里**。
+
+现在两条都修了：两个文件都扫，并且先去掉前导 `_` 再取 hash。反向验证过——
+把旧的 `_7KE1Ra_triggerEffort` 塞回 skin.css，测试立刻失败（`fail 1`），改回来就过。
+
+## 上游不提供思考强度时
+
+`ModelSelect` 只在模型**确实有**推理等级时才渲染那个后缀：
+
+```jsx
+effortLabel !== void 0 && <span className={triggerEffort}>{effortLabel}</span>
+```
+
+所以「后缀不在」就是应用自己给出的答案。皮肤据此让变阻器**下岗**：
+
+| | 可用 | 不可用 |
+|---|---|---|
+| 读数 | 空载 / 轻载 / 重载 / 满载 | **不适用** |
+| 点亮格 | 按档位 | 0 |
+| 手柄 | 显示 | 不显示 |
+| `aria-disabled` | `false` | `true` |
+| 拖动 / 方向键 | 生效 | 不生效 |
+
+判断要连续 **8 个采样（约 2 秒）**都「触发器在、后缀不在」才成立，因为启动时输入卡片
+先于模型触发器出现，一次落空就宣布「不适用」会在一个马上要出现的控件上闪一下。
+
+实测（`tools/scenarios/effort-absent.js`，把后缀的类名临时改掉来复现条件）：
+
+```
+可用时        unavailable=false  aria-disabled=false  读数 轻载   22 格亮  手柄 block
+后缀不可见时   unavailable=true   aria-disabled=true   读数 不适用  0 格亮   手柄 none
+按方向键       读数仍是 不适用（控件确实不动）
+后缀恢复后     unavailable=false  读数回到档位
+
+checks: 8/8 PASS
+```
+
 ## 截图
 
 `tools/shoot.mjs` 通过 DevTools 协议驱动真实浏览器，可以做到普通 `--screenshot` 做不到的事：

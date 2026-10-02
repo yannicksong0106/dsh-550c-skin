@@ -895,6 +895,33 @@ html[data-550c] .c-load[data-550c-level='max'] .c-load-thumb {
   }
 }
 
+/* ── the fader on a model with no effort setting ─────────────────────────── */
+
+/* `ModelSelect` renders its effort suffix only when the model has one, so an
+   absent suffix means there is nothing to choose. The fader then has to stop
+   being a control rather than keep naming a level: all cells dark, no handle,
+   no hover, a readout that says 不适用 instead of a detent.
+
+   It keeps its place in the row — the row is the app's layout and this is the
+   skin's own furniture inside it — so nothing moves when the model changes. */
+html[data-550c] .c-load[data-550c-unavailable] .c-load-now {
+  color: var(--c-text-faint);
+  text-shadow: none;
+  animation: none;
+}
+
+html[data-550c] .c-load[data-550c-unavailable] .c-load-thumb {
+  display: none;
+}
+
+html[data-550c] .c-load[data-550c-unavailable] .c-load-track {
+  cursor: default;
+}
+
+html[data-550c] .c-load[data-550c-unavailable] .c-load-cell {
+  background: rgba(var(--c-glow-rgb), 0.08);
+}
+
 /* ── the effort picker the rheostat replaces ─────────────────────────────── */
 
 /* WHILE THE CONSOLE IS DRIVING THE APP'S OWN MENUS, THEY ARE INVISIBLE.
@@ -913,8 +940,15 @@ html[data-550c] .c-load[data-550c-level='max'] .c-load-thumb {
 
    Scoped under BOTH attributes, not just the driving marker: a rule that could
    fire while the skin is off would be able to hide the app's own menu with
-   nothing on screen to explain it. */
-html[data-550c][data-550c-driving] [class*='_7KE1Ra_menu'] {
+   nothing on screen to explain it.
+
+   `_menu`, not `_7KE1Ra_menu`. The hash is per-BUILD: `_7KE1Ra` is what the web
+   profile's node_modules spells, while the desktop app's asar spells the same
+   module `oXE0lW_menu`. Keying on the hash meant this rule, and every other
+   app-side selector in this plugin, silently did nothing on the desktop — where
+   the effort picker stayed on screen beside the fader that was meant to replace
+   it. Local names are stable across builds; hashes are not. */
+html[data-550c][data-550c-driving] [class*='_menu'] {
   visibility: hidden !important;
 }
 
@@ -933,7 +967,7 @@ html[data-550c][data-550c-driving] [class*='_7KE1Ra_menu'] {
    authorised to restructure — and it is marked and counted by
    test/layout-contract.test.mjs rather than buried inside a widened check. */
 html[data-550c] [data-550c-effort],
-html[data-550c] [class*='_7KE1Ra_triggerEffort'] {
+html[data-550c] [class*='_triggerEffort'] {
   display: none !important;
 }
 
