@@ -440,6 +440,56 @@ effortLabel !== void 0 && <span className={triggerEffort}>{effortLabel}</span>
 checks: 8/8 PASS
 ```
 
+## 仪表盘层：侧边栏与对话背景
+
+侧边栏和对话区是屏幕上最大的两块表面，原来只是「DSH 换了个色」。现在它们有自己的处理：
+
+| 位置 | 做法 | 节点 |
+|---|---|---|
+| 侧边栏列 | 四角括线 + 栅格纹理 + `550C // CONSOLE` 标签带 | 一个 `.c-panel-frame` |
+| 每条会话行 | 状态刻度，悬停/聚焦时点亮 | 每行一个 `.c-panel-tick` |
+| 对话背景 | 坐标网格（主 120px / 次 24px）、顶部洋光、一条缓慢下行的扫描头 | 一个 `.c-grid` |
+
+**背景是画在应用下面的，不是盖在上面。** `.c-grid` 插在 `<body>` 最前面、`z-index:-1`：
+外壳、侧边栏、中栏**各自都画自己的背景**，所以只有应用留空的地方才透出网格。画在上面就不是
+「控制台的底板」，而是「糊在应用上的一层」。
+
+装饰全部是 `position:absolute` + `pointer-events:none`，所以不参与布局、也吃不掉点击——
+`npm run geometry` 实测：**框外 11 个地标逐字节一致**，对话框区域照旧按设计移动。
+
+### 三个把这一层做出来时才暴露的问题
+
+**① 装饰的包含块不是它挂上去的那个元素。** `.c-panel-frame` 挂在侧边栏列上，但那一列没有
+`position`，于是 `inset: 6px` 解析到了视口——第一次实测框是 **1588px 宽**，几乎整个窗口。
+修法是给列加一个 `data-550c-panel-anchor` 标记，由样式表给它 `position:relative`（唯一一个
+允许设在 DSH 元素上的布局属性，且不带偏移，不动任何东西）。
+
+**② 一次性的挂载赶不上 React 的渲染。** 皮肤 apply 时外壳还没渲染完，`findSidebar()` 返回 null，
+括线框永远没被创建——而行刻度却出现了，因为刻度来自 MutationObserver 而框来自一次性分支。
+现在两者走同一个可重入的 `decorate()`。
+
+**③ 新增一个偏好字段，宿主会把它丢掉。** `panel` 加进了客户端和宿主两边的白名单，
+**却漏了客户端 hydrate 里第三份字段清单**。Desktop 上宿主是唯一真相（端口每次启动都变，
+浏览器存储是空的），于是它那份没有 `panel` 的记录胜出，样式表拿到的属性值是字符串 `"undefined"`。
+
+三份清单现在合成一份 `PREFS_SCHEMA`，并且加了一条测试把**两半**钉在一起。这条测试立刻抓出了
+一个**早就存在的**不一致：客户端叫 `mark`、宿主叫 `hud`——所以「550C 标志」这个开关在 Desktop 上
+**从来就没有跨重启保存过**。宿主现在写 `mark`，同时仍接受 `hud` 作为旧文件的别名。
+
+## 工具本身的坑：客户端 bundle 会被永久缓存
+
+调这一层时被它耽误了好几次，值得写下来。
+
+客户端 bundle 的 URL 是 `plugins/??dsh-550c-skin/client.js&rev=<进程 nonce>`，而响应是
+`max-age=31536000, immutable`。**`rev` 是每个宿主进程一个 nonce，重建 `lib/client.js` 不会改变它**，
+而 `tools/shoot.mjs` 复用 `.verify/browser-profile`（实测 656MB）。于是浏览器一直用它第一次抓到的
+那一份，改动永远到不了页面上——表现得就像「我的 CSS 改了没生效」。
+
+`Page.reload({ ignoreCache: true })` **救不了**：bundle 是客户端模块加载器在文档 load 之后才去取的，
+reload 的那个标志早就消费掉了。重启宿主有效（nonce 变了）。
+
+所以 `tools/shoot.mjs` 现在有 `--fresh`：先删掉整个浏览器 profile 再跑。
+
 ## 截图
 
 `tools/shoot.mjs` 通过 DevTools 协议驱动真实浏览器，可以做到普通 `--screenshot` 做不到的事：

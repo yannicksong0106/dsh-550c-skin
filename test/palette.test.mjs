@@ -210,6 +210,30 @@ test('the elevated surfaces and the activity label are owned by the skin', () =>
   }
 })
 
+test('the two halves agree on every preference field', () => {
+  // The client half reads its fields from PREFS_SCHEMA; the host half has its own
+  // list in lib/index.js, because it is a separate bundle. A field present on one
+  // side and missing on the other is SILENT: on Desktop the host is the source of
+  // truth, so its copy wins and the client is handed `undefined` for the field it
+  // knows about. That is how `panel` arrived at the stylesheet as the literal
+  // string "undefined" on its first live run.
+  const client = readFileSync(resolve(root, 'src/client.js'), 'utf8')
+  const host = readFileSync(resolve(root, 'lib/index.js'), 'utf8')
+
+  const schema = client.match(/const PREFS_SCHEMA = \{([\s\S]*?)\n\}/)
+  assert.ok(schema !== null, 'the client must declare a PREFS_SCHEMA')
+  const clientFields = [...schema[1].matchAll(/^\s{2}(\w+):/gm)].map((match) => match[1])
+  assert.ok(clientFields.length >= 6, `expected the client schema to list its fields, saw ${clientFields.length}`)
+
+  // The host declares each field as `state.<name> = pick(input.<name>, ...)`.
+  const hostFields = [...host.matchAll(/state\.(\w+) = pick\(input\.\1/g)].map((match) => match[1])
+
+  const missingOnHost = clientFields.filter((name) => !hostFields.includes(name))
+  const missingOnClient = hostFields.filter((name) => !clientFields.includes(name))
+  assert.deepEqual(missingOnHost, [], 'these preferences never survive the host:\n  ' + missingOnHost.join('\n  '))
+  assert.deepEqual(missingOnClient, [], 'the host stores fields the client does not know:\n  ' + missingOnClient.join('\n  '))
+})
+
 test('schemeOfTheme maps only this plugin ids', () => {
   assert.equal(p.schemeOfTheme('550c-amber').id, 'amber')
   assert.equal(p.schemeOfTheme('dark'), null)

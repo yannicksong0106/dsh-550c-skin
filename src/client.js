@@ -50,6 +50,7 @@ const ATTR = {
   vignette: 'data-550c-vig',
   mono: 'data-550c-mono',
   mark: 'data-550c-mark',
+  panel: 'data-550c-panel',
 }
 
 /** Setting ids for the host stylesheets, so a re-mount never doubles one. */
@@ -59,9 +60,25 @@ const ROW_STYLE_ID = 'dsh-550c-skin-row-style'
 
 const ATMOSPHERE_VALUES = ['full', 'scan', 'vignette', 'off']
 const TOGGLE_VALUES = ['on', 'off']
+/**
+ * How much of the console's own furniture is drawn.
+ *
+ * FOUR INDEPENDENT PIECES, each switchable, because the pieces do not cost the
+ * same in attention. The composer's readout is where the machine talks; the
+ * sidebar dressing is always on screen behind everything and is the easiest one
+ * to want gone; the grid is a background texture and the most polarising. Tying
+ * them together would force a choice between all and none.
+ *
+ * (The settings ROWS are expected to be re-grouped — the current three rows say
+ * `550C 皮肤 / CRT 气氛 / 控制台外观`, which no longer describes four axes. This
+ * shape is deliberately wider than the UI so that regrouping is a UI change and
+ * not another migration of the stored document.)
+ */
+const PANEL_VALUES = ['full', 'sidebar', 'grid', 'off']
 const DEFAULT_PREFS = {
   scheme: 'off',
   atmosphere: 'full',
+  panel: 'full',
   mono: 'on',
   mark: 'on',
   builtin: DEFAULT_BUILTIN,
@@ -78,6 +95,45 @@ function pickEnum(value, allowed, fallback) {
 }
 
 /**
+ * The preference fields, declared ONCE.
+ *
+ * There are two places a preference blob is read — localStorage and the host's
+ * durable record — and they used to spell the field list out separately. Adding
+ * `panel` to one and not the other is exactly how a Desktop session ended up
+ * handing the stylesheet the string `undefined` as an attribute value: the host
+ * is the source of truth there, so its copy won and the new field was not in it.
+ *
+ * Declaring the schema once makes that mistake unavailable rather than unlikely.
+ * The host half (`lib/index.js`) still has its own list — it is a separate
+ * bundle — and `test/palette.test.mjs` pins the two against each other.
+ */
+const PREFS_SCHEMA = {
+  scheme: { allowed: ['off'].concat(SCHEMES.map((scheme) => scheme.id)), fallback: DEFAULT_PREFS.scheme },
+  atmosphere: { allowed: ATMOSPHERE_VALUES, fallback: DEFAULT_PREFS.atmosphere },
+  panel: { allowed: PANEL_VALUES, fallback: DEFAULT_PREFS.panel },
+  mono: { allowed: TOGGLE_VALUES, fallback: DEFAULT_PREFS.mono },
+  mark: { allowed: TOGGLE_VALUES, fallback: DEFAULT_PREFS.mark },
+  builtin: { allowed: BUILTIN_PREFERENCES, fallback: DEFAULT_PREFS.builtin },
+}
+
+/**
+ * Normalise a raw blob against the schema.
+ *
+ * `base` is where a field falls back to when the blob lacks it — the defaults for
+ * a local read, and the CURRENT preferences for a host read, so a field this
+ * build knows and the host does not keeps what localStorage said instead of being
+ * silently reset.
+ */
+function normalizePrefs(raw, base) {
+  const source = base ?? DEFAULT_PREFS
+  const out = {}
+  for (const name of Object.keys(PREFS_SCHEMA)) {
+    out[name] = pickEnum(raw?.[name], PREFS_SCHEMA[name].allowed, source[name] ?? PREFS_SCHEMA[name].fallback)
+  }
+  return out
+}
+
+/**
  * The stored preferences, normalised.
  *
  * Read synchronously at module evaluation: a skin that is already selected has
@@ -88,14 +144,7 @@ function readPrefs() {
   try {
     const raw = window.localStorage.getItem(PREFS_KEY)
     if (raw === null) return { ...DEFAULT_PREFS }
-    const parsed = JSON.parse(raw)
-    return {
-      scheme: pickEnum(parsed?.scheme, ['off'].concat(SCHEMES.map((scheme) => scheme.id)), DEFAULT_PREFS.scheme),
-      atmosphere: pickEnum(parsed?.atmosphere, ATMOSPHERE_VALUES, DEFAULT_PREFS.atmosphere),
-      mono: pickEnum(parsed?.mono, TOGGLE_VALUES, DEFAULT_PREFS.mono),
-      mark: pickEnum(parsed?.mark, TOGGLE_VALUES, DEFAULT_PREFS.mark),
-      builtin: pickEnum(parsed?.builtin, BUILTIN_PREFERENCES, DEFAULT_PREFS.builtin),
-    }
+    return normalizePrefs(JSON.parse(raw))
   } catch (error) {
     return { ...DEFAULT_PREFS }
   }
@@ -166,13 +215,12 @@ function hydrate(adopt) {
         persist()
         return
       }
-      const next = {
-        scheme: pickEnum(stored.scheme, ['off'].concat(SCHEMES.map((scheme) => scheme.id)), prefs.scheme),
-        atmosphere: pickEnum(stored.atmosphere, ATMOSPHERE_VALUES, prefs.atmosphere),
-        mono: pickEnum(stored.mono, TOGGLE_VALUES, prefs.mono),
-        mark: pickEnum(stored.mark, TOGGLE_VALUES, prefs.mark),
-        builtin: pickEnum(stored.builtin, BUILTIN_PREFERENCES, prefs.builtin),
-      }
+      // THE FIELD LIST IS DERIVED, NOT REPEATED. It used to be spelled out here
+      // as well, and `panel` was added to `readPrefs` and to the host's sanitizer
+      // but not to this copy — so a Desktop session, where the host is the source
+      // of truth, adopted a document without it and the stylesheet was handed the
+      // string `undefined` as an attribute value.
+      const next = normalizePrefs(stored, prefs)
       if (JSON.stringify(next) === JSON.stringify(prefs)) {
         debug('hydrate: host and local agree, nothing to adopt')
         return
@@ -238,6 +286,7 @@ function applyEffectAttributes() {
   root.setAttribute(ATTR.vignette, atmosphereOn('vignette') ? 'on' : 'off')
   root.setAttribute(ATTR.mono, prefs.mono)
   root.setAttribute(ATTR.mark, prefs.mark)
+  root.setAttribute(ATTR.panel, prefs.panel)
 }
 
 function clearEffectAttributes() {
@@ -246,6 +295,7 @@ function clearEffectAttributes() {
   root.removeAttribute(ATTR.vignette)
   root.removeAttribute(ATTR.mono)
   root.removeAttribute(ATTR.mark)
+  root.removeAttribute(ATTR.panel)
 }
 
 function ensureSkinStyle() {
@@ -331,6 +381,10 @@ function activate(scheme) {
   live = {
     scheme: scheme,
     stopCrt: mountCrt(),
+    // The sidebar's dressing and the console backdrop. Mounted after the tokens
+    // so their first painted frame already has the scheme's colours, and after
+    // the CRT layer so the atmosphere reads as being in front of the grid.
+    stopPanel: mountPanel({ sidebar: prefs.panel !== 'off' && prefs.panel !== 'grid', grid: prefs.panel !== 'off' && prefs.panel !== 'sidebar' }),
     // The dialog mark writes itself out inside the composer and then stays as a
     // standing READY readout. Mounted after the tokens so its first painted
     // frame already has the scheme's colours.
@@ -451,6 +505,7 @@ function deactivate() {
   const previous = live
   live = null
   if (previous.stopCrt !== null) previous.stopCrt()
+  if (previous.stopPanel !== null) previous.stopPanel()
   if (previous.stopMark !== null) previous.stopMark()
   removeSkinStyle()
   clearEffectAttributes()
@@ -481,10 +536,14 @@ function syncSkin() {
  * invalidated.
  *
  * Most axes are pure CSS — they key off attributes on `<html>`, so rewriting the
- * attributes is the whole job. The corner mark is the exception: it is real DOM
- * with a running sequence, so its toggle has to mount or dispose it, and
- * remounting restarts the boot, which is the honest behaviour for "show the
- * mark" (you asked for the animation; you get the animation).
+ * attributes is the whole job. Two are real DOM with a running state, so their
+ * toggles have to mount or dispose them:
+ *
+ *   the corner mark   remounting restarts the boot, which is the honest behaviour
+ *                     for "show the mark" (you asked for the animation; you get
+ *                     the animation);
+ *   the instrument    remounting re-reads the sidebar, which is what makes the
+ *   panel             panel appear on rows that were rendered after it.
  */
 function republish() {
   if (live === null) return
@@ -497,6 +556,14 @@ function republish() {
   } else if (live.stopMark === null && wantsMark) {
     live.stopMark = mountDialogConsole()
   }
+
+  // The panel is cheap to rebuild and its node set depends on the sidebar's
+  // current rows, so it is always remounted rather than diffed.
+  if (live.stopPanel !== null) live.stopPanel()
+  live.stopPanel =
+    prefs.panel === 'off'
+      ? null
+      : mountPanel({ sidebar: prefs.panel !== 'grid', grid: prefs.panel !== 'sidebar' })
 }
 
 /* ── settings rows ───────────────────────────────────────────────────────── */

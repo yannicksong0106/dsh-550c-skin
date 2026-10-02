@@ -977,7 +977,211 @@ html[data-550c][data-550c-mark='off'] .c-load {
   display: none;
 }
 
-/* ── 11. REDUCED MOTION ──────────────────────────────────────────────────── */
+/* ── 11. THE INSTRUMENT PANEL: SIDEBAR ───────────────────────────────────── */
+
+/* The sidebar is the one surface that is on screen for the whole session, so it
+   is where the console's identity can afford to be stated rather than implied.
+   Everything here is either a token remap through the ladder or an
+   absolutely-positioned decoration; the column's geometry is untouched.
+
+   `data-550c-panel` carries the switch, with three values:
+     full     sidebar + backdrop grid
+     sidebar  sidebar only
+     grid     backdrop only
+     off      neither
+   The decorations are mounted by src/panel.js only for the halves that are on, so
+   the rules below can assume their nodes exist. */
+
+/* The four bracket corners. Drawn as eight gradients on one node — two per corner
+   — because a border cannot be broken at the middle of an edge without a second
+   element per corner, and this node must never grow a box of its own.
+
+   The anchor marker is what makes `inset` mean the sidebar: the column is not
+   positioned, so an absolute child of it would resolve against the viewport. On
+   the first live run it did exactly that and the frame came out 1588px wide. */
+html[data-550c] [data-550c-panel-anchor] {
+  position: relative;
+}
+
+html[data-550c] .c-panel-frame {
+  position: absolute;
+  inset: 6px;
+  pointer-events: none;
+  z-index: 3;
+  border-radius: 3px;
+  background-image:
+    linear-gradient(var(--c-rule) 0 0), linear-gradient(var(--c-rule) 0 0),
+    linear-gradient(var(--c-rule) 0 0), linear-gradient(var(--c-rule) 0 0),
+    linear-gradient(var(--c-rule) 0 0), linear-gradient(var(--c-rule) 0 0),
+    linear-gradient(var(--c-rule) 0 0), linear-gradient(var(--c-rule) 0 0);
+  background-repeat: no-repeat;
+  background-size:
+    14px 1px, 1px 14px,
+    14px 1px, 1px 14px,
+    14px 1px, 1px 14px,
+    14px 1px, 1px 14px;
+  background-position:
+    left top, left top,
+    right top, right top,
+    left bottom, left bottom,
+    right bottom, right bottom;
+  opacity: 0.65;
+}
+
+/* The raster every instrument face has printed on it. Very low alpha: at 0.05 it
+   is the surface's texture, above about 0.1 it competes with 12px CJK. */
+html[data-550c] .c-panel-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(0deg, var(--c-rule) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, var(--c-rule) 0 1px, transparent 1px 24px);
+  opacity: 0.055;
+}
+
+/* The label band at the head of the column. Dashed, like a form's field rule, and
+   spaced like the splash's panel captions. */
+html[data-550c] .c-panel-frame::after {
+  content: '550C // CONSOLE';
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* INSIDE the frame's own inset, not above it. At `top:-7px` the label sat
+     outside the column and was clipped by its top edge — the one place on this
+     surface where there is free space is between the frame's rule and the
+     wordmark, and that is where it goes. */
+  top: 6px;
+  padding: 0 8px 3px;
+  font-family: var(--c-mono);
+  font-size: 8px;
+  line-height: 10px;
+  letter-spacing: 0.34em;
+  color: var(--c-amber-d, var(--c-text-faint));
+  text-transform: uppercase;
+  background-image: linear-gradient(90deg, var(--c-rule) 0 6px, transparent 6px 12px);
+  background-repeat: repeat-x;
+  background-position: left bottom;
+  background-size: 12px 1px;
+  /* The rule has to sit still while the label reads: a moving background here
+     would drag the text with it. Only the opacity breathes. */
+  animation: c-panel-breathe 6.4s ease-in-out infinite;
+}
+
+@keyframes c-panel-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* A status tick on every session row, in the row's leading gutter. It is the
+   smallest possible statement of "this row is a channel", and it costs one node
+   per row. */
+html[data-550c] .c-panel-tick {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  width: 2px;
+  height: 10px;
+  margin-top: -5px;
+  pointer-events: none;
+  background: var(--c-amber-d, var(--c-text-faint));
+  opacity: 0.5;
+  transition: opacity 0.2s linear, background 0.2s linear;
+}
+
+/* The row's own hover already tints it; the tick comes up with it, so the row
+   reads as powered rather than merely highlighted. `:focus-within` too, because
+   a keyboard user gets no hover. */
+html[data-550c] [data-row-key^='session:'] {
+  position: relative;
+}
+
+html[data-550c] [data-row-key^='session:']:hover .c-panel-tick,
+html[data-550c] [data-row-key^='session:']:focus-within .c-panel-tick {
+  background: var(--c-amber);
+  opacity: 1;
+  box-shadow: 0 0 6px rgba(var(--c-glow-rgb), 0.7);
+}
+
+/* The project rows get a hairline rail down the group, so a workspace's sessions
+   read as belonging to it rather than merely following it. Drawn as a gradient on
+   the app's own row — no node, and no layout property. */
+html[data-550c] [data-row-key^='workspace:'] {
+  background-image: linear-gradient(90deg, var(--c-rule) 0 1px, transparent 1px);
+  background-repeat: no-repeat;
+  background-position: 9px bottom;
+  background-size: 1px 8px;
+  opacity: 1;
+}
+
+/* ── 12. THE INSTRUMENT PANEL: BACKDROP ──────────────────────────────────── */
+
+/* The console's floor.
+
+   IT IS DRAWN UNDER THE APP, NOT OVER IT. `<body>` first child, `z-index:-1`, so
+   the app's own surfaces paint on top of it — the frame, the sidebar and the
+   centre column all paint a background, and a layer above them would be drawing
+   over the application rather than behind it. What shows through is exactly the
+   area the app leaves transparent.
+
+   `position:fixed` so it covers the viewport without contributing a scrollable
+   area of its own. */
+html[data-550c] .c-grid {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--c-bg);
+  background-image:
+    /* The bloom: the light a CRT spills onto the wall behind it. */
+    radial-gradient(ellipse 70% 46% at 50% -6%, rgba(var(--c-glow-rgb), 0.07), transparent 70%),
+    /* The MAJOR grid, every 120px: four squares of the minor grid. */
+    repeating-linear-gradient(0deg, var(--c-rule) 0 1px, transparent 1px 120px),
+    repeating-linear-gradient(90deg, var(--c-rule) 0 1px, transparent 1px 120px);
+}
+
+/* The minor grid, every 24px, at a quarter of the major lines' weight — two
+   layers rather than one image, because a single `background-image` cannot give
+   its own rules different alphas and graph paper is what one weight looks like. */
+html[data-550c] .c-grid::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(0deg, var(--c-rule) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, var(--c-rule) 0 1px, transparent 1px 24px);
+  opacity: 0.32;
+}
+
+html[data-550c] .c-grid::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* A single soft scan head drifting down the tube, at a period long enough to
+     notice only when you look for it. */
+  background: linear-gradient(180deg, transparent 0%, rgba(var(--c-glow-rgb), 0.035) 50%, transparent 100%);
+  height: 22vh;
+  animation: c-grid-sweep 14s linear infinite;
+}
+
+@keyframes c-grid-sweep {
+  from {
+    transform: translateY(-25vh);
+  }
+  to {
+    transform: translateY(100vh);
+  }
+}
+
+/* ── 13. REDUCED MOTION ──────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
   html[data-550c] .c-crt .c-roll,
@@ -992,10 +1196,15 @@ html[data-550c][data-550c-mark='off'] .c-load {
   html[data-550c] .c-cell[data-lit='1'],
   html[data-550c] .c-console-head[data-550c-working] .c-cell[data-lit='1'],
   html[data-550c] .c-tps-rail::after,
+  html[data-550c] .c-panel-frame::after,
+  html[data-550c] .c-grid::after,
   html[data-550c] :where([data-state='running'], [data-running])::after {
     animation: none;
   }
   html[data-550c] .c-crt .c-flicker {
+    display: none;
+  }
+  html[data-550c] .c-grid::after {
     display: none;
   }
 }

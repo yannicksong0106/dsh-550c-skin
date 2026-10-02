@@ -20,8 +20,8 @@
  *                  a syntax error is a build failure here instead of a client
  *                  module that silently never loads.
  *
- * Order matters: palettes → stylesheet → hud → client. All plain top-level
- * declarations, so concatenation is a valid module body.
+ * Order matters: palettes → stylesheet → crt → panel → dialog → client. All plain
+ * top-level declarations, so concatenation is a valid module body.
  *
  * Usage: node scripts/build.mjs
  */
@@ -48,6 +48,7 @@ const parts = [
   read('src/palettes.js').trimEnd(),
   `/** src/skin.css, inlined: the style half of the skin. */\nconst SKIN_CSS = ${literal(css)};`,
   read('src/crt.js').trimEnd(),
+  read('src/panel.js').trimEnd(),
   read('src/dialog.js').trimEnd(),
   read('src/client.js').trimEnd(),
 ]

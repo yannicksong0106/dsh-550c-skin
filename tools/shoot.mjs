@@ -30,6 +30,8 @@
  *   --full    capture the full scroll height instead of the viewport
  *   --nogates do not try to dismiss the first-run onboarding gates
  *   --keep    leave the browser running (debugging)
+ *   --fresh   clear the browser profile first, so a rebuilt client bundle is
+ *             actually fetched (see the note beside `profileDir`)
  *
  * `--pre` / `--post` carry JavaScript inline, which gets painful for anything
  * longer than one statement; `--prefile` / `--postfile` take the same script
@@ -42,7 +44,7 @@
  * a guess about it.
  */
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -102,6 +104,25 @@ const height = Number(typeof args.height === 'string' ? args.height : 900)
 const port = Number(typeof args.port === 'string' ? args.port : 9334)
 const outPath = resolve(root, typeof args.out === 'string' ? args.out : '.verify/shots/shot.png')
 const profileDir = resolve(root, '.verify/browser-profile')
+
+/**
+ * `--fresh` throws the browser profile away first.
+ *
+ * NOT A CONVENIENCE — the default is a trap for anyone editing this plugin. The
+ * client bundle is served from a URL whose `rev` is a per-process nonce, so a
+ * rebuilt `lib/client.js` has the SAME url, and the response is
+ * `max-age=31536000, immutable`. This profile persists between runs, so the
+ * browser keeps serving the bundle it cached the first time and the edit under
+ * test never arrives — which reads exactly like "my CSS change did nothing".
+ *
+ * `Page.reload({ignoreCache})` does not save you: the bundle is fetched by the
+ * client module loader AFTER the document loads, so the reload flag has already
+ * been consumed. Restarting the host works too, because that changes the nonce.
+ */
+if (args.fresh === true) {
+  rmSync(profileDir, { recursive: true, force: true })
+  console.log('shoot: cleared the browser profile (--fresh)')
+}
 
 const browser = BROWSERS.find((candidate) => existsSync(candidate))
 if (browser === undefined) {
