@@ -324,6 +324,47 @@ checks: 6/6 PASS   verdict: PASS
 
 另外那次真实运行里的对照：app 报 242，表头显示 `242.0`，**24/24 帧完全一致**。
 
+## 算力荷载变阻器：读数必须来自机器
+
+用户报「这个似乎没用呢」。先证明驱动本身是好的——按键盘一格一格走，同时读**应用自己的**档位标签
+（`[class*="_7KE1Ra_triggerEffort"]`，被皮肤隐藏但隐藏节点仍有文字）：
+
+```
+start        空载  → app Max      ← 注意这一行
+one right    轻载  → app Low
+two right    重载  → app High
+three right  满载  → app Max
+one left     重载  → app High
+two left     轻载  → app Low
+three left   空载  → app Off
+```
+
+驱动没问题：两边四档一一对应（空载=Off、轻载=Low、重载=High、满载=Max），上下都能走。
+
+**问题在第一行**：页面加载时应用其实在 `Max`，而变阻器显示 `空载`——它从 `index = 0` 起步，
+**从来没有读过应用**。一个报着机器并不在的档位的控件，读起来就是一个没用的控件。
+
+修法是在已有的 250ms 计时器里搭一次对账（不新开定时器）：读应用自己的标签，映射回四档；
+`driving` 期间不对账，驱动结束后 2.5 秒内也不对账——应用标签要几帧才跟上点击，
+在那个窗口里对账会读到**旧**档位并把变阻器拽回去，用户会看到「一拖就跳回原位」。
+
+实测：
+
+```
+1) 先推到 Max        → console 满载, app Max
+2) 全新加载后再读     → console 满载, app Max, aria-valuenow 3, 56/56 格点亮
+```
+
+修复前第 2 步会得到 `空载` / `aria-valuenow 0`。
+
+`tools/scenarios/real-effect.js` 原来等 `.c-load-trigger` 并点它开面板——**那个控件已经不存在了**
+（变阻器改成常驻），所以它一直卡在等待循环里报 `present: false`。已按当前结构重写，并加上
+「开局读数必须等于应用档位」这条断言：
+
+```
+checks: 5/5 PASS   verdict: PASS
+```
+
 ## 截图
 
 `tools/shoot.mjs` 通过 DevTools 协议驱动真实浏览器，可以做到普通 `--screenshot` 做不到的事：
