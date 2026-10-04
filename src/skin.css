@@ -1296,26 +1296,25 @@ html[data-550c] .c-grid::before {
   opacity: 0.32;
 }
 
-html[data-550c] .c-grid::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  /* A single soft scan head drifting down the tube, at a period long enough to
-     notice only when you look for it. */
-  background: linear-gradient(180deg, transparent 0%, rgba(var(--c-glow-rgb), 0.035) 50%, transparent 100%);
-  height: 22vh;
-  animation: c-grid-sweep 14s linear infinite;
-}
-
-@keyframes c-grid-sweep {
-  from {
-    transform: translateY(-25vh);
-  }
-  to {
-    transform: translateY(100vh);
-  }
-}
+/* THERE WAS A SCAN HEAD HERE, AND IT COST FRAMES.
+ *
+ * A `.c-grid::after` drifted a 22vh gradient down the tube on an infinite
+ * `transform` animation — and it was the single cause of the stutter reported
+ * when the sidebar expands. Measured on one page load, same gesture each time:
+ *
+ *   as shipped                8 frames over 33ms, worst 33.5
+ *   scan head hidden          0 frames over 33ms, worst 16.8
+ *   scan head promoted        1 frame  over 33ms, worst 33.3   (will-change)
+ *
+ * PERFECT 60fps with it gone, and only when it is gone. A viewport-sized
+ * gradient animating behind a `z-index:-1` layer cannot be composited on its own
+ * without a permanent full-screen layer, and even promoted it still dropped a
+ * frame; the repaints it forced underneath were the cost.
+ *
+ * It is also REDUNDANT: the CRT layer already carries a rolling refresh band
+ * (`.c-roll`), which is the same idea done once. Two drifting bands on one
+ * screen is not atmosphere, it is noise — and this one was paying for it in
+ * dropped frames on every sidebar transition. */
 
 /* ── 13. REDUCED MOTION ──────────────────────────────────────────────────── */
 
@@ -1333,15 +1332,11 @@ html[data-550c] .c-grid::after {
   html[data-550c] .c-console-head[data-550c-working] .c-cell[data-lit='1'],
   html[data-550c] .c-tps-rail::after,
   html[data-550c] .c-panel-frame::after,
-  html[data-550c] .c-grid::after,
   html[data-550c] [data-row-key^='session:']::after,
   html[data-550c] :where([data-state='running'], [data-running])::after {
     animation: none;
   }
   html[data-550c] .c-crt .c-flicker {
-    display: none;
-  }
-  html[data-550c] .c-grid::after {
     display: none;
   }
 }

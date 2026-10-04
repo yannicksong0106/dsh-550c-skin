@@ -550,6 +550,36 @@ PowerShell 的 `Set-Content -Encoding utf8`、记事本、大多数 Windows 编�
 `tools/shoot.mjs` 也加了 `--hover`（把真实指针停在元素上——`:hover` 只认真实指针位置，
 合成事件没用；故意不点击，因为点侧边栏行会改变选中状态）。
 
+## 那一帧卡顿：背景里的扫描头
+
+用户报「打开侧边栏的时候会卡顿一下」。**先量再改**——用 `PerformanceObserver`（longtask）
+加真实 `requestAnimationFrame` 间隔，在同一个页面里对同一个手势反复测：
+
+```
+panel off      144 帧  median 16.7  p95 16.7  worst 16.8   丢帧(>33ms) 0
+panel sidebar  144 帧  median 16.7  p95 16.7  worst 16.8   丢帧 0
+panel grid     132 帧  median 16.7  p95 33.3  worst 50.1   丢帧 12
+panel full     138 帧  median 16.7  p95 16.8  worst 33.4   丢帧 6
+```
+
+**不是侧边栏，是背景网格。**再把网格拆开，在一次页面加载里依次替换同一个手势的配置：
+
+```
+as shipped        丢帧 8   worst 33.5
+扫描头隐藏        丢帧 0   worst 16.8     ← 就是它
+扫描头加 will-change 丢帧 1   worst 33.3
+整个网格隐藏      丢帧 0   worst 16.8
+```
+
+背景里那条 `.c-grid::after` 扫描头——一个 22vh 的渐变沿 `transform` 无限下漂——**是唯一的成因**。
+一个视口大小的渐变在 `z-index:-1` 的图层里动，不额外常驻一整屏合成层就没法自己合成；即使加了
+`will-change` 也仍会掉帧，因为它逼着下面重绘。
+
+而且它**本来就是重复的**：CRT 层已经有一条滚带（`.c-roll`），同一个想法做了一遍。两条一起漂不叫
+气氛，叫噪音——而这一条是拿每次侧边栏过渡的掉帧换来的。
+
+删掉之后实测 `panel full`：**144 帧、worst 16.8ms、丢帧 0、无 longtask**，与关掉整个仪表盘层完全一致。
+
 ## 截图
 
 `tools/shoot.mjs` 通过 DevTools 协议驱动真实浏览器，可以做到普通 `--screenshot` 做不到的事：

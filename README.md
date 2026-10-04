@@ -147,6 +147,9 @@ npm run geometry  # 需要跑着的 dsh web：开关皮肤各量一次几何并�
 | `tools/scenarios/offenders.js` | 扫出仍然偏离配色的元素（按色相判定） |
 | `tools/scenarios/residue.js` | 关掉之后逐项确认零残留 |
 | `tools/scenarios/settings-rows.js` | 端到端驱动设置行，并走一次「点关闭」的实时拆除路径 |
+| `tools/scenarios/frames.js` | 量展开项目时的真实帧间隔与 longtask（用掉帧数把卡顿定位到具体图层） |
+| `tools/scenarios/real-effect.js` | 证明变阻器真的改了应用的推理等级，且开局读数等于应用档位 |
+| `tools/scenarios/effort-absent.js` | 上游不提供思考强度时，变阻器确实下岗（不适用 / 不可拖） |
 | `tools/check-palette.mjs` | 不起浏览器就检查阶梯生成（134 项、无空值、无 NaN） |
 
 ## 兼容与限制
