@@ -201,16 +201,36 @@ function hydrate(adopt) {
   } catch (error) {
     return
   }
+  /**
+   * Did the host actually answer?
+   *
+   * WITHOUT THIS, A FRESH BROWSER SILENTLY TURNS THE SKIN OFF FOR GOOD. The
+   * "first run on this host" branch below publishes the LOCAL record to the host
+   * — which is right when the host has no file and wrong in every other case.
+   * A rejected fetch and a non-2xx response both arrived as `stored === null`,
+   * indistinguishable from an empty host, so a browser with no record of its own
+   * (a new Desktop profile, a cleared profile, a run with `shoot --fresh`)
+   * published its defaults and OVERWROTE the user's saved scheme with `off`.
+   *
+   * Observed exactly that way: a `--fresh` run left `550c-skin-state.json`
+   * saying `scheme: "off"` after it had said `white`.
+   */
+  let answered = false
   request
     .then((response) => {
       debug('hydrate: status', response.status, response.ok)
-      return response.ok ? response.json() : null
+      if (!response.ok) return null
+      answered = true
+      return response.json()
     })
     .then((payload) => {
+      // The host said nothing — keep the local record and change nothing. The
+      // host is the durable one; a browser is not allowed to guess it away.
+      if (!answered) return
       const stored = payload?.state
       debug('hydrate: stored =', JSON.stringify(stored ?? null), 'local =', JSON.stringify(prefs))
       if (stored === null || stored === undefined) {
-        // First run on this host: publish whatever this browser already had, so
+        // Genuine first run on this host: publish whatever this browser had, so
         // the two records agree from here on.
         persist()
         return

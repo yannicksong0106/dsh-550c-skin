@@ -1120,6 +1120,142 @@ html[data-550c] [data-row-key^='workspace:'] {
   opacity: 1;
 }
 
+/* ── 11b. THE OPEN CHANNEL: HOVER INTERFERENCE, INVERTED SELECTION ──────── */
+
+/* A conversation row is a channel, and switching to one is a channel opening.
+   The two states say that the way a terminal does:
+
+     hover     the signal breaks up — slices of the accent, the alarm red and the
+               cool cyan tear sideways across the row, twice per loop
+     selected  INVERSE VIDEO: the fill becomes the phosphor and the text becomes
+               the tube's black, which is what a selected line looks like on a
+               console and is impossible to mistake for a hover tint
+
+   NOTHING HERE MOVES THE ROW. The tear is a pseudo-element's
+   `background-position`, which is paint; the selection is `background` and
+   `color`. `transform` — the obvious way to displace a slice — is a layout
+   property on a DSH element and is forbidden by this sheet's own contract, and
+   it would move the row's hit target as well as its pixels.
+
+   THE GLITCH IS A BURST, NOT A LOOP. Two flashes inside 1.4s, most of the cycle
+   at rest: an effect that runs continuously stops reading as interference and
+   starts reading as noise, and this sidebar is on screen all session. */
+
+html[data-550c] [data-row-key^='session:']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: 0;
+  /* Three slices at three heights, in the scheme's own tear triple. NOT a fixed
+     red/green/blue: whether a tear is chromatic is a property of the phosphor,
+     and hardcoding one put a red fringe on the P4 white screen — a different
+     machine leaking into this one. See `glitch` in `src/palettes.js`.
+     `screen` so they add light where they cross the row's text rather than
+     punching holes in it. */
+  background-image:
+    linear-gradient(90deg, transparent 0 6%, var(--c-glitch-1) 6% 38%, transparent 38%),
+    linear-gradient(90deg, transparent 0 46%, var(--c-glitch-2) 46% 68%, transparent 68%),
+    linear-gradient(90deg, transparent 0 74%, var(--c-glitch-3) 74% 94%, transparent 94%);
+  background-size: 100% 3px, 100% 2px, 100% 4px;
+  background-repeat: no-repeat;
+  background-position: 0 24%, 0 58%, 0 80%;
+  mix-blend-mode: screen;
+}
+
+html[data-550c] [data-row-key^='session:']:hover::after,
+html[data-550c] [data-row-key^='session:']:focus-within::after {
+  animation: c-channel-tear 1.4s steps(1) infinite;
+}
+
+/* The displacement is the whole effect: each slice jumps to a different x on each
+   step, so the row appears to lose horizontal hold for a frame or two. */
+@keyframes c-channel-tear {
+  0%,
+  68% {
+    opacity: 0;
+  }
+  69% {
+    opacity: 1;
+    background-position: -8px 24%, 11px 58%, -5px 80%;
+  }
+  74% {
+    opacity: 0.55;
+    background-position: 6px 19%, -9px 62%, 7px 76%;
+  }
+  79% {
+    opacity: 1;
+    background-position: -4px 31%, 5px 55%, -11px 83%;
+  }
+  84% {
+    opacity: 0.7;
+    background-position: 9px 26%, -6px 60%, 3px 79%;
+  }
+  89% {
+    opacity: 0;
+  }
+  90% {
+    opacity: 0.9;
+    background-position: -11px 21%, 8px 64%, -7px 77%;
+  }
+  95%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The chromatic split on the row's own text while the signal is broken. On the
+   text rather than the row, because `text-shadow` cannot escape the glyphs. The
+   offsets are the tear's outer two colours, so on the white screen this reads as
+   a doubled edge rather than as coloured fringing. */
+html[data-550c] [data-row-key^='session:']:hover :where(span),
+html[data-550c] [data-row-key^='session:']:focus-within :where(span) {
+  text-shadow: 1px 0 0 var(--c-glitch-1), -1px 0 0 var(--c-glitch-3);
+}
+
+/* ── the selected conversation: inverse video ────────────────────────────── */
+
+/* `aria-selected` is the app's own statement of which row is current — an
+   attribute, so it survives a rebuild, unlike the hashed class beside it. The
+   skin never guesses the selection from a class name.
+
+   THE INVERSION IS THE POINT: the phosphor becomes the paper and the tube's
+   black becomes the ink, which is the one state a console can show that no tint
+   can be confused with. It also costs no new token — the accent is already the
+   brightest thing in every scheme and `bg` is already the darkest. */
+html[data-550c] [data-row-key^='session:'][aria-selected='true'] {
+  background: var(--c-amber);
+  color: var(--c-bg);
+}
+
+/* Every descendant, because the app colours the title and the icon slot
+   separately and a black fill under pale-grey glyphs is unreadable. The
+   timestamp keeps a little air: it is the least important thing on the row and
+   full-contrast black would make it shout as loudly as the name. */
+html[data-550c] [data-row-key^='session:'][aria-selected='true'] :where(span, svg) {
+  color: var(--c-bg);
+}
+
+html[data-550c] [data-row-key^='session:'][aria-selected='true'] :where(span):last-child {
+  color: color-mix(in srgb, var(--c-bg) 72%, transparent);
+}
+
+/* The tick is on an inverted row too, and in its normal colour it would be
+   invisible against the fill. */
+html[data-550c] [data-row-key^='session:'][aria-selected='true'] .c-panel-tick {
+  background: var(--c-bg);
+  opacity: 0.8;
+  box-shadow: none;
+}
+
+/* An inverted row is already the loudest thing in the sidebar, so it does not
+   also tear. */
+html[data-550c] [data-row-key^='session:'][aria-selected='true']::after {
+  animation: none;
+  opacity: 0;
+}
+
 /* ── 12. THE INSTRUMENT PANEL: BACKDROP ──────────────────────────────────── */
 
 /* The console's floor.
@@ -1198,6 +1334,7 @@ html[data-550c] .c-grid::after {
   html[data-550c] .c-tps-rail::after,
   html[data-550c] .c-panel-frame::after,
   html[data-550c] .c-grid::after,
+  html[data-550c] [data-row-key^='session:']::after,
   html[data-550c] :where([data-state='running'], [data-running])::after {
     animation: none;
   }

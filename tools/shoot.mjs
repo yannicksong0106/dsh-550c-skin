@@ -30,6 +30,8 @@
  *   --full    capture the full scroll height instead of the viewport
  *   --nogates do not try to dismiss the first-run onboarding gates
  *   --keep    leave the browser running (debugging)
+ *   --hover   selector to park a real pointer on, so `:hover` styles can be
+ *             photographed (no click: a click would change the state)
  *   --fresh   clear the browser profile first, so a rebuilt client bundle is
  *             actually fetched (see the note beside `profileDir`)
  *
@@ -335,6 +337,40 @@ async function main() {
     }
 
     /**
+     * Move the pointer onto an element and leave it there.
+     *
+     * `:hover` follows the real pointer position, so a synthesised `mouseover`
+     * does nothing and there is no way to photograph a hover style without moving
+     * the pointer. Deliberately no press, unlike `realClick`: clicking a sidebar
+     * row CHANGES the selection, so the row would no longer be in the state under
+     * test.
+     *
+     * The move is dispatched twice, at the element's centre and a few pixels away
+     * first, because a `mouseMoved` to the position the pointer already occupies
+     * produces no new hit test in Chromium and `:hover` would never apply.
+     *
+     * @param selector - CSS selector for the element to hover.
+     */
+    const realMove = async (selector) => {
+      const point = await evaluate(`(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (el === null) return null;
+        el.scrollIntoView({ block: 'center' });
+        const rect = el.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      })()`)
+      if (point === null) {
+        console.log(`hover: nothing matches ${selector}`)
+        return false
+      }
+      const x = Math.round(point.x)
+      const y = Math.round(point.y)
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x - 3, y: y - 3, button: 'none', buttons: 0 })
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none', buttons: 0 })
+      return true
+    }
+
+    /**
      * Click a real mouse, through the browser's own input pipeline.
      *
      * `element.click()` and hand-dispatched PointerEvents are both untrusted, and
@@ -432,6 +468,18 @@ async function main() {
     // A trusted click, after the scenario has captured its "before" state.
     if (typeof args.realclick === 'string') {
       await realClick(args.realclick)
+      if (after > 0) await sleep(after)
+    }
+
+    // A trusted HOVER: the pointer is moved onto the element and left there.
+    //
+    // `:hover` is driven by the real pointer position, so a synthesised
+    // `mouseover` event does nothing — there is no way to photograph a hover
+    // style without moving the pointer. Deliberately no press, unlike realClick,
+    // because clicking a sidebar row CHANGES the selection and the row would no
+    // longer be in the state under test.
+    if (typeof args.hover === 'string') {
+      await realMove(args.hover)
       if (after > 0) await sleep(after)
     }
 

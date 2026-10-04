@@ -162,6 +162,26 @@ test('the skin tokens cover the CRT and the type stack', () => {
       assert.ok(name in tokens, `${scheme.id}: skin tokens missing ${name}`)
     }
     assert.match(tokens['--c-glow-rgb'], /^\d+,\d+,\d+$/, `${scheme.id}: glow must be a raw r,g,b triple`)
+
+    // The signal-tear triple. Every scheme must declare one, because the channel
+    // glitch draws with it — and it must come from the scheme rather than from
+    // the stylesheet, or a phosphor that has one emission line ends up with a
+    // coloured fringe borrowed from a screen that has three.
+    for (const name of ['--c-glitch-1', '--c-glitch-2', '--c-glitch-3']) {
+      assert.match(tokens[name], /^#[0-9a-f]{6}$/i, `${scheme.id}: ${name} must be a hex colour, got ${tokens[name]}`)
+    }
+
+    // P4 is MONOCHROME: its tear may not carry a hue. This is the assertion that
+    // would have caught the red fringe on the white screen.
+    if (scheme.id === 'white') {
+      for (const name of ['--c-glitch-1', '--c-glitch-2', '--c-glitch-3']) {
+        const [r, g, b] = tokens[name].replace('#', '').match(/../g).map((pair) => parseInt(pair, 16))
+        assert.ok(
+          Math.max(r, g, b) - Math.min(r, g, b) <= 8,
+          `${scheme.id}: ${name} is ${tokens[name]}, but the white scheme is monochrome — its tear must be neutral`,
+        )
+      }
+    }
   }
 })
 

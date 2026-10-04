@@ -102,6 +102,12 @@ const SCHEMES = [
     redBright: '#ff8f8f',
     green: '#dcdcdc',
     cyan: '#d0d0d0',
+    // P4 is a MONOCHROME phosphor: one emission line, white. A signal tear on
+    // this tube is a LUMINANCE tear — bright, mid, dark — and has no hue to
+    // separate into. Handing it the chromatic triple below produced a red fringe
+    // on a grey screen, which is not this machine malfunctioning; it is a
+    // different machine leaking in. Reported, exactly, as "为什么是红色的呢".
+    glitch: ['#ffffff', '#8a8a8a', '#4a4a4a'],
   },
   {
     id: 'amber',
@@ -134,6 +140,11 @@ const SCHEMES = [
     redBright: '#ff8a6a',
     green: '#7fd18a',
     cyan: '#4fd1c5',
+    // Amber is a chromatic phosphor, so its tear separates into the colours this
+    // machine already uses: its own two ambers plus the cool cyan the state
+    // palette carries. No raw red — that reads as an error state rather than a
+    // signal fault.
+    glitch: ['#ffc043', '#e8a020', '#4fd1c5'],
   },
   {
     id: 'green',
@@ -154,6 +165,9 @@ const SCHEMES = [
     redBright: '#ffa07a',
     green: '#a6ffbb',
     cyan: '#7fe0d0',
+    // P1 green, torn into its own three emissions: bright green, the accent, and
+    // the cooler green-cyan it already uses for state.
+    glitch: ['#a6ffbb', '#4ad46a', '#7fe0d0'],
   },
   {
     id: 'cyan',
@@ -174,6 +188,7 @@ const SCHEMES = [
     redBright: '#ff8fa3',
     green: '#7ff0d0',
     cyan: '#a6f0ff',
+    glitch: ['#a6f0ff', '#3fc8dc', '#7ff0d0'],
   },
 ]
 
@@ -451,8 +466,10 @@ function tokensFor(scheme) {
  * @returns {Record<string, string>} property name → value.
  */
 function skinTokensFor(scheme) {
-  const { accent, accentBright, accentDim, bg, bgPanel, bgWin, sidebar, text, textDim, textFaint, red, green, cyan } = scheme
+  const { accent, accentBright, accentDim, bg, bgPanel, bgWin, sidebar, text, textDim, textFaint, red, green, cyan, glitch } = scheme
   const glow = rgbTriple(accent)
+  /** The signal-tear triple; falls back to the accent's own family. */
+  const tear = Array.isArray(glitch) && glitch.length === 3 ? glitch : [accentBright, accent, textDim]
   return {
     '--c-amber': accent,
     '--c-amber-b': accentBright,
@@ -467,6 +484,13 @@ function skinTokensFor(scheme) {
     '--c-red': red,
     '--c-green': green,
     '--c-cyan': cyan,
+    // The channel-tear slices and the chromatic text split. PER SCHEME, because
+    // whether a tear is chromatic at all is a property of the phosphor: the P4
+    // white screen has one emission line and tears into brightness, while the
+    // amber, green and cyan tubes separate into colours they already own.
+    '--c-glitch-1': tear[0],
+    '--c-glitch-2': tear[1],
+    '--c-glitch-3': tear[2],
     '--c-glow-rgb': glow,
     // The splash's own scalar recipes, so the UI's rules and glows are the
     // animation's rules and glows rather than lookalikes.
