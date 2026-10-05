@@ -8,8 +8,8 @@
 > **状态：本地验证中，尚未发布。** 还没建仓库、没发 npm；目前只在 `web` profile 上实测过。
 > 见 [验证](docs/VERIFICATION.md)。
 
-![琥珀](.verify/shots/style-amber-02.png)
-![青磷光](.verify/shots/style-cyan.png)
+![琥珀](docs/preview-amber.png)
+![青磷光](docs/preview-cyan.png)
 
 ---
 

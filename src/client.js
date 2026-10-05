@@ -590,7 +590,9 @@ function republish() {
 
 /** Row chrome, in DSH tokens so it matches whichever theme is active. */
 const ROW_CSS = `
-.dsh550c-skin-row{display:flex;align-items:center;gap:16px;padding:10px 0;flex-wrap:wrap}
+.dsh550c-skin-section{display:flex;flex-direction:column;width:100%}
+.dsh550c-skin-row{display:flex;align-items:center;gap:16px;padding:16px 0;flex-wrap:wrap;border-bottom:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28))}
+.dsh550c-skin-section [data-slot]>:last-child>.dsh550c-skin-row{border-bottom:none}
 .dsh550c-skin-row-text{flex:1;min-width:220px}
 .dsh550c-skin-row-title{font-size:13px;line-height:1.5;color:var(--dsw-alias-label-primary,#191919)}
 .dsh550c-skin-row-desc{margin-top:2px;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-secondary,#666)}
@@ -696,9 +698,60 @@ function AtmosphereRow() {
       prefs = { ...prefs, atmosphere: next }
       writePrefs(prefs)
       setValue(next)
+      // PUSH IT TO THE HOST TOO. `writePrefs` only reaches localStorage, and on
+      // Desktop that is NOT durable: the app takes a new port every launch, an
+      // origin is host+port, so localStorage starts empty each time. The host's
+      // state file is the only record that survives — the scheme row always
+      // persisted, and these two did not, which means atmosphere and the console
+      // furniture silently reset on every Desktop restart while the colour stuck.
+      persist()
       republish()
     },
   })
+}
+
+/**
+ * The instrument-panel row: how much of the console's own furniture is drawn.
+ *
+ * This preference shipped WITHOUT a row for one commit — the field, the host
+ * whitelist, the attribute and the mount/unmount were all wired, and the only way
+ * to reach any of it was to edit the state file by hand. A preference with no UI
+ * is not a preference, it is a setting for the person who wrote it.
+ */
+function PanelRow() {
+  const [value, setValue] = React.useState(() => prefs.panel)
+  return React.createElement(SegmentRow, {
+    title: '仪表盘',
+    note: '侧边栏的四角括线与通道刻度、对话区的坐标网格。全是绝对定位的装饰，不参与布局、也吃不掉点击——关掉只是少一些氛围，不影响任何功能。',
+    value,
+    options: [
+      { value: 'full', label: '全部' },
+      { value: 'sidebar', label: '仅侧边栏' },
+      { value: 'grid', label: '仅背景' },
+      { value: 'off', label: '关闭' },
+    ],
+    onChoose: (next) => {
+      prefs = { ...prefs, panel: next }
+      writePrefs(prefs)
+      setValue(next)
+      persist()
+      republish()
+    },
+  })
+}
+
+/**
+ * The 550C page's column.
+ *
+ * The same shape as the host's own section (`display:flex; flex-direction:column;
+ * width:100%`) so the shell lays the rows inside it out exactly as it lays out
+ * the General page's.
+ */
+function PanelSection(props) {
+  React.useEffect(() => {
+    ensureRowStyle()
+  }, [])
+  return React.createElement('div', { className: 'dsh550c-skin-section' }, props.renderSlot('settings.550c.item', {}))
 }
 
 /** The furniture row: the corner mark, and whether the UI goes monospace. */
@@ -709,6 +762,9 @@ function FurnitureRow() {
     prefs = { ...prefs, [key]: next }
     writePrefs(prefs)
     setter(next)
+    // See the note on the atmosphere row: localStorage is per-origin and Desktop
+    // changes port every launch, so the host's record is the durable one.
+    persist()
     republish()
   }
   return React.createElement(
@@ -935,9 +991,45 @@ function apply(ctx) {
     }
   }
 
-  ctx.slots.inject('settings.general.item', () =>
+  /**
+   * THIS PLUGIN'S OWN PAGE IN THE SETTINGS NAV.
+   *
+   * The rows used to be injected into `settings.general.item`, which is the one
+   * ledger every feature package shares — and the boot animation plugin was
+   * already there with the SAME order triple (26/27/28). Slots with equal orders
+   * tie, a stable sort leaves them in registration order, and the General page
+   * came out as two unrelated plugins alternating row by row:
+   *
+   *   550C 开机动画 · 550C 皮肤 · 开机动画配色 · CRT 气氛 · 版本与更新 · 控制台外观
+   *
+   * Measured on the live panel: 17 rows in General, 6 of them ours, interleaved.
+   * That is what "很乱" was, and no amount of re-ordering the three rows could fix
+   * it — leaving the shared ledger is the fix.
+   *
+   * DSH itself sets the precedent: appearance settings live in their own section
+   * rather than in General. `settings.section` is a public `list` slot and other
+   * third-party plugins already register their own pages through it.
+   *
+   * The child slot is declared here so the boot plugin can move its three rows
+   * under this same page later by injecting into `settings.550c.item`, instead of
+   * both packages fighting over a shared ledger.
+   */
+  ctx.slots.inject('settings.section', () =>
     ctx.slots.register(
-      { name: 'settings.general.item', id: 'skin-550c', order: 26 },
+      {
+        name: 'settings.section',
+        id: '550c',
+        order: 30,
+        label: () => '550C',
+        children: { 'settings.550c.item': { kind: 'list', scope: 'root' } },
+      },
+      PanelSection,
+    ),
+  )
+
+  ctx.slots.inject('settings.550c.item', () =>
+    ctx.slots.register(
+      { name: 'settings.550c.item', id: 'skin-550c', order: 10 },
       function ThemeRow() {
         return React.createElement(SkinRow, {
           readTheme: currentScheme,
@@ -951,11 +1043,14 @@ function apply(ctx) {
     ),
   )
 
-  ctx.slots.inject('settings.general.item', () =>
-    ctx.slots.register({ name: 'settings.general.item', id: 'skin-550c-atmosphere', order: 27 }, AtmosphereRow),
+  ctx.slots.inject('settings.550c.item', () =>
+    ctx.slots.register({ name: 'settings.550c.item', id: 'skin-550c-atmosphere', order: 20 }, AtmosphereRow),
   )
-  ctx.slots.inject('settings.general.item', () =>
-    ctx.slots.register({ name: 'settings.general.item', id: 'skin-550c-furniture', order: 28 }, FurnitureRow),
+  ctx.slots.inject('settings.550c.item', () =>
+    ctx.slots.register({ name: 'settings.550c.item', id: 'skin-550c-panel', order: 30 }, PanelRow),
+  )
+  ctx.slots.inject('settings.550c.item', () =>
+    ctx.slots.register({ name: 'settings.550c.item', id: 'skin-550c-furniture', order: 40 }, FurnitureRow),
   )
 }
 

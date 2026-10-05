@@ -175,6 +175,31 @@ test('the remapped tokens are ones DSH actually reads', (t) => {
   assert.deepEqual(dead, [], 'these tokens are remapped but nothing reads them:\n  ' + dead.join('\n  '))
 })
 
+test('the settings rows live on this plugin own page, not the shared ledger', () => {
+  // `settings.general.item` is the one ledger every feature package shares, and
+  // the boot animation plugin already holds the same order triple there (26/27/28
+  // — see the note in src/client.js). Equal orders tie, a stable sort leaves them
+  // in registration order, and the live General page came out as two unrelated
+  // plugins alternating row by row: 17 rows, 6 of them ours, interleaved.
+  //
+  // So the guard is not "the orders differ", it is "we are not in that ledger at
+  // all". Comments are stripped first: the registration code explains the history
+  // and therefore names the old slot.
+  const client = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
+  const code = client.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+
+  assert.equal(
+    code.includes('settings.general.item'),
+    false,
+    'the skin must not inject into the shared General ledger — it has its own section',
+  )
+  assert.ok(code.includes("name: 'settings.section'"), 'the skin must register a settings page')
+  assert.ok(code.includes("children: { 'settings.550c.item'"), 'its page must declare a child slot for its rows')
+  for (const id of ['skin-550c', 'skin-550c-atmosphere', 'skin-550c-panel', 'skin-550c-furniture']) {
+    assert.ok(code.includes(`id: '${id}'`), `row ${id} must be registered`)
+  }
+})
+
 test('the skin never depends on a hashed class name', (t) => {
   if (classNames === null) {
     t.skip('DSH client packages are not installed under $DSH_HOME/profiles')
