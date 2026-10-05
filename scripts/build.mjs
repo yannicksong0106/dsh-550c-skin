@@ -25,7 +25,7 @@
  *
  * Usage: node scripts/build.mjs
  */
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Script } from 'node:vm'
@@ -78,7 +78,36 @@ try {
   throw new Error(`build: generated bundle does not parse — ${error.message}`)
 }
 
-writeFileSync(resolve(root, 'lib/client.js'), out)
+/**
+ * Write the bundle atomically: a temporary file in the same directory, then a
+ * rename over the target.
+ *
+ * A PLAIN `writeFileSync` HERE IS A LIVE HAZARD, not a stylistic preference. The
+ * plugin is `link:`-installed, so `lib/client.js` is served straight off this
+ * working tree to any running DSH — and the Desktop app's bundle URL is immutable
+ * under a per-process `rev`, which means a hard refresh re-reads this exact file
+ * at whatever moment the user hits it. A build that truncates the file and then
+ * writes it in chunks leaves a window in which a refresh loads HALF A BUNDLE.
+ * The symptom is a half-alive skin: some surfaces styled, others missing, and
+ * nothing in any log, because the client plugin simply throws while parsing.
+ *
+ * `rename` within one directory is atomic on both platforms Node targets
+ * (MOVEFILE_REPLACE_EXISTING on Windows), so a reader sees either the previous
+ * bundle or the new one and never a partial one. The host half already writes its
+ * state file this way; the build is the one place that did not.
+ */
+const target = resolve(root, 'lib/client.js')
+const temporary = `${target}.${process.pid}.tmp`
+writeFileSync(temporary, out, { encoding: 'utf8', flag: 'wx' })
+renameSync(temporary, target)
+
+// Read it back and compare. `rename` guarantees the reader never sees a partial
+// file; it does not guarantee the bytes landed, and this script is the only
+// thing standing between a source edit and a running app.
+if (readFileSync(target, 'utf8') !== out) {
+  throw new Error('build: write verification failed — lib/client.js does not match the build output')
+}
+
 process.stdout.write(
   `build: wrote lib/client.js (${out.length} chars, ${css.length} of them CSS, v${version})\n`,
 )
