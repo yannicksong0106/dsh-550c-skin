@@ -14,18 +14,33 @@
     "lib",
     "cordis.patch.yml",
     "README.md",
+    "CHANGELOG.md",
+    "CREDITS.md",
     "LICENSE"
   ],
   "license": "MIT",
   "author": {
-    "name": "Ziyang Song"
+    "name": "Ziyang Song",
+    "url": "https://github.com/yannicksong0106"
   },
   "contributors": [
     {
-      "name": "Voidpoket",
+      "name": "Voidpocket",
+      "url": "https://github.com/Voidpocket",
       "comment": "550C 片头动画与配色原稿（dsh-550c-boot 的 assets/550C-source.html）"
     }
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yannicksong0106/dsh-550c-skin.git"
+  },
+  "homepage": "https://github.com/yannicksong0106/dsh-550c-skin#readme",
+  "bugs": {
+    "url": "https://github.com/yannicksong0106/dsh-550c-skin/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "dsh",
     "dsh-plugin",

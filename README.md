@@ -171,7 +171,7 @@ npm run geometry  # 需要跑着的 dsh web：开关皮肤各量一次几何并�
 
 ## 致谢
 
-550C 片头动画与配色原稿由 **Voidpoket**（[@Voidpoket](https://github.com/Voidpoket)）提供，
+550C 片头动画与配色原稿由 **Voidpocket**（[@Voidpocket](https://github.com/Voidpocket)）提供，
 皮肤工程与移植由 **Ziyang Song**（[@yannicksong0106](https://github.com/yannicksong0106)）完成。
 视觉参照 [eDEX-UI](https://github.com/GitSquared/edex-ui)（仪器面板的调性）。
 
