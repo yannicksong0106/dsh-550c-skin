@@ -357,6 +357,19 @@ function removeSkinStyle() {
  */
 let live = null
 
+/**
+ * Which module instance currently owns the shared document state.
+ *
+ * A live plugin reload evaluates this module a second time while the first
+ * instance's teardown is still pending, and the two share one `<html>`. Without
+ * ownership the older teardown runs last and strips `data-550c` (and the tokens,
+ * the effect attributes and dark mode) that the newer instance just installed —
+ * the palette silently reverts to stock while the newer instance's own nodes stay
+ * in the page, so the composer keeps showing its raw readouts.
+ */
+const INSTANCE_ID = 'c' + Math.random().toString(36).slice(2, 10)
+const OWNER_ATTR = 'data-550c-owner'
+
 /** The body attribute selecting DSH's own dark base palette. */
 const DARK_ATTRIBUTE = 'data-ds-dark-theme'
 
@@ -392,6 +405,9 @@ function activate(scheme) {
 
   const root = document.documentElement
   root.setAttribute(ATTR.skin, scheme.id)
+  // Claim the shared state. A stale teardown from an earlier module instance
+  // checks this and leaves everything below alone.
+  root.setAttribute(OWNER_ATTR, INSTANCE_ID)
   applySkinTokens(scheme)
   applyEffectAttributes()
   ensureSkinStyle()
@@ -524,14 +540,26 @@ function deactivate() {
   debug('deactivate', live.scheme.id)
   const previous = live
   live = null
+  // Our own nodes always go: they belong to this instance and to nobody else, so
+  // removing them here is safe even when a newer instance is already live.
   if (previous.stopCrt !== null) previous.stopCrt()
   if (previous.stopPanel !== null) previous.stopPanel()
   if (previous.stopMark !== null) previous.stopMark()
+  // Everything below is shared document state. During a live reload this teardown
+  // can run AFTER the replacement instance has claimed it, and stripping it then
+  // is what made the palette vanish while the newer instance's decorations stayed
+  // in the page, unstyled — the composer's raw readouts were the visible symptom.
+  // Only the current owner may hand the shared state back.
+  if (document.documentElement.getAttribute(OWNER_ATTR) !== INSTANCE_ID) {
+    debug('deactivate: a newer instance owns the screen, shared state left alone')
+    return
+  }
   removeSkinStyle()
   clearEffectAttributes()
   retractSkinTokens(previous.scheme)
   removeLadder()
   document.documentElement.removeAttribute(ATTR.skin)
+  document.documentElement.removeAttribute(OWNER_ATTR)
   // Hand the palette back to whatever the theme service is now resolving, which
   // is what the presenter would have written had this skin never existed. The
   // guard has to go first, or it would re-assert dark over the handover.
