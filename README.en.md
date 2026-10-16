@@ -3,7 +3,12 @@
 [中文](README.md) | [English](README.en.md)
 
 [![npm](https://img.shields.io/npm/v/dsh-550c-skin?style=flat-square&logo=npm&label=npm)](https://www.npmjs.com/package/dsh-550c-skin)
-[![License](https://img.shields.io/github/license/yannicksong0106/dsh-550c-skin?style=flat-square)](LICENSE)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-550c-skin?style=flat-square&label=npm%20downloads%2Fmo)](https://www.npmjs.com/package/dsh-550c-skin)
+[![npm total](https://img.shields.io/npm/dt/dsh-550c-skin?style=flat-square&label=npm%20downloads)](https://www.npmjs.com/package/dsh-550c-skin)
+[![Stars](https://img.shields.io/github/stars/yannicksong0106/dsh-550c-skin?style=flat-square&logo=github&label=Stars)](https://github.com/yannicksong0106/dsh-550c-skin/stargazers)
+[![Forks](https://img.shields.io/github/forks/yannicksong0106/dsh-550c-skin?style=flat-square&label=Forks)](https://github.com/yannicksong0106/dsh-550c-skin/forks)
+[![Last commit](https://img.shields.io/github/last-commit/yannicksong0106/dsh-550c-skin?style=flat-square&label=last%20commit)](https://github.com/yannicksong0106/dsh-550c-skin/commits/master)
+[![License](https://img.shields.io/github/license/yannicksong0106/dsh-550c-skin?style=flat-square&label=license)](LICENSE)
 
 **Repaints the whole DeepSeek Harness shell as a 550C console.**
 

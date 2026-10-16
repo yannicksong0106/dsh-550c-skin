@@ -3,7 +3,12 @@
 [中文](README.md) | [English](README.en.md)
 
 [![npm](https://img.shields.io/npm/v/dsh-550c-skin?style=flat-square&logo=npm&label=npm)](https://www.npmjs.com/package/dsh-550c-skin)
-[![License](https://img.shields.io/github/license/yannicksong0106/dsh-550c-skin?style=flat-square)](LICENSE)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-550c-skin?style=flat-square&label=npm%20%E6%9C%88%E4%B8%8B%E8%BD%BD)](https://www.npmjs.com/package/dsh-550c-skin)
+[![npm total](https://img.shields.io/npm/dt/dsh-550c-skin?style=flat-square&label=npm%20%E6%80%BB%E4%B8%8B%E8%BD%BD)](https://www.npmjs.com/package/dsh-550c-skin)
+[![Stars](https://img.shields.io/github/stars/yannicksong0106/dsh-550c-skin?style=flat-square&logo=github&label=Stars)](https://github.com/yannicksong0106/dsh-550c-skin/stargazers)
+[![Forks](https://img.shields.io/github/forks/yannicksong0106/dsh-550c-skin?style=flat-square&label=Forks)](https://github.com/yannicksong0106/dsh-550c-skin/forks)
+[![Last commit](https://img.shields.io/github/last-commit/yannicksong0106/dsh-550c-skin?style=flat-square&label=%E6%9C%80%E8%BF%91%E6%8F%90%E4%BA%A4)](https://github.com/yannicksong0106/dsh-550c-skin/commits/master)
+[![License](https://img.shields.io/github/license/yannicksong0106/dsh-550c-skin?style=flat-square&label=%E8%AE%B8%E5%8F%AF%E8%AF%81)](LICENSE)
 
 **把 DeepSeek Harness 的整个界面换成 550C 控制台。**
 
