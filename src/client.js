@@ -35,6 +35,14 @@ const React = require('react')
 const PREFS_KEY = 'dsh-550c-skin:prefs'
 /** The host's durable mirror of the same object (lib/index.js STATE_ROUTE). */
 const STATE_ROUTE = '/dsh-550c-skin/state'
+
+/** 宿主注入的已装版本（lib/index.js VERSION_GLOBAL）。 */
+const VERSION_GLOBAL = '__dsh550cSkinVersion'
+/** 宿主的更新路由（lib/index.js UPDATE_ROUTE / APPLY_ROUTE）。 */
+const UPDATE_ROUTE = '/dsh-550c-skin/update'
+const APPLY_ROUTE = '/dsh-550c-skin/update/apply'
+const PACKAGE_URL = 'https://www.npmjs.com/package/dsh-550c-skin'
+const INSTALL_SPEC = 'dsh-550c-skin@latest'
 /** How long after the last change the durable write is coalesced. */
 const PERSIST_DEBOUNCE_MS = 400
 
@@ -775,12 +783,9 @@ function PanelRow() {
  * width:100%`) so the shell lays the rows inside it out exactly as it lays out
  * the General page's.
  */
-function PanelSection(props) {
-  React.useEffect(() => {
-    ensureRowStyle()
-  }, [])
-  return React.createElement('div', { className: 'dsh550c-skin-section' }, props.renderSlot('settings.550c.item', {}))
-}
+/* 「550C」页的分组筛选条：和 boot 插件里那份保持一致 ——
+   谁注册这个页面谁就要渲染它，否则 boot 让位时筛选条会跟着消失。
+   以后新增启动动画：这里和 boot 的 PANEL_TABS 都要加一项。 */
 
 /** The furniture row: the corner mark, and whether the UI goes monospace. */
 function FurnitureRow() {
@@ -1042,20 +1047,186 @@ function apply(ctx) {
    * under this same page later by injecting into `settings.550c.item`, instead of
    * both packages fighting over a shared ledger.
    */
-  ctx.slots.inject('settings.section', () =>
-    ctx.slots.register(
-      {
-        name: 'settings.section',
-        id: '550c',
-        order: 30,
-        label: () => '550C',
-        children: { 'settings.550c.item': { kind: 'list', scope: 'root' } },
-      },
-      PanelSection,
+
+  /* 「版本」设置行：显示已装版本、是否有新版，并可以一键更新。
+   实现与 dsh-550c-boot 的 VersionRow 一致 —— 这里只换了包名与路由。 */
+function VersionRow() {
+  const [current] = React.useState(() =>
+    typeof window[VERSION_GLOBAL] === 'string' && window[VERSION_GLOBAL] !== '' ? window[VERSION_GLOBAL] : null,
+  )
+  const [state, setState] = React.useState({ status: 'idle', payload: null, error: null })
+  const [applying, setApplying] = React.useState({ status: 'idle', result: null })
+  const [copied, setCopied] = React.useState(false)
+
+  React.useEffect(() => {
+    ensureRowStyle()
+  }, [])
+
+  const check = React.useCallback(() => {
+    setState({ status: 'checking', payload: null, error: null })
+    setApplying({ status: 'idle', result: null })
+    setCopied(false)
+    let failed = false
+    fetch(UPDATE_ROUTE, { headers: { accept: 'application/json' } })
+      .then((response) => {
+        if (!response.ok) throw new Error('HTTP ' + String(response.status))
+        return response.json()
+      })
+      .then((payload) => {
+        if (!failed) setState({ status: 'done', payload: payload, error: null })
+      })
+      .catch((error) => {
+        failed = true
+        setState({ status: 'failed', payload: null, error: String(error?.message ?? error) })
+      })
+  }, [])
+
+  const apply = React.useCallback(() => {
+    setApplying({ status: 'running', result: null })
+    fetch(APPLY_ROUTE, { method: 'POST', headers: { accept: 'application/json' } })
+      .then((response) => response.json().then((payload) => ({ ok: response.ok, payload: payload })))
+      .then((answer) => setApplying({ status: answer.payload?.ok === true ? 'done' : 'failed', result: answer.payload }))
+      .catch((error) => setApplying({ status: 'failed', result: { hint: String(error?.message ?? error) } }))
+  }, [])
+
+  const copy = React.useCallback((text) => {
+    setCopied(false)
+    try {
+      const clipboard = navigator.clipboard
+      if (clipboard !== undefined && typeof clipboard.writeText === 'function') {
+        clipboard.writeText(text).then(
+          () => setCopied(true),
+          () => setCopied(false),
+        )
+      }
+    } catch (error) {
+      /* clipboard refused: the spec is on screen to select by hand */
+    }
+  }, [])
+
+  const openPackagePage = React.useCallback(() => {
+    const url = state.payload?.url ?? PACKAGE_URL
+    try {
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (error) {
+      /* a blocked popup is not worth an error state; the URL is public */
+    }
+  }, [state.payload])
+
+  const payload = state.payload
+  const source = payload?.source === 'npmmirror' ? '国内镜像' : payload?.source === 'npmjs' ? 'npm 官方' : null
+  const outdated = state.status === 'done' && payload !== null && payload.state === 'outdated'
+  const canApply = payload?.canApply === true
+  // The host half loads when the process starts, the client half on every page
+  // load — so a refresh can show this row while the host still has no routes.
+  const hostStale = current === null
+  let note = null
+
+  if (state.status === 'checking') {
+    note = React.createElement('div', { className: 'dsh550c-note' }, '检查中…')
+  } else if (state.status === 'failed') {
+    note = React.createElement(
+      'div',
+      { className: 'dsh550c-note bad' },
+      /404/.test(state.error) ? '宿主半边是旧版本，重启客户端后可用。' : '检查失败：' + state.error,
+      React.createElement('button', { type: 'button', className: 'dsh550c-link', onClick: openPackagePage }, '打开 npm 页面'),
+    )
+  } else if (outdated && applying.status === 'running') {
+    note = React.createElement('div', { className: 'dsh550c-note up' }, '更新中…')
+  } else if (outdated && applying.status === 'done') {
+    note = React.createElement(
+      'div',
+      { className: 'dsh550c-note up' },
+      '已更新到 v' + String(applying.result?.version ?? payload.latest) + '，重启客户端生效。',
+    )
+  } else if (outdated && applying.status === 'failed') {
+    note = React.createElement(
+      'div',
+      { className: 'dsh550c-note bad' },
+      String(applying.result?.hint ?? '更新失败。'),
+      React.createElement('button', { type: 'button', className: 'dsh550c-link', onClick: () => copy(INSTALL_SPEC) }, copied ? '已复制' : '复制包名'),
+    )
+  } else if (outdated) {
+    note = React.createElement(
+      'div',
+      { className: 'dsh550c-note up' },
+      '有新版本 v' + String(payload.latest) + '。',
+      canApply
+        ? '点「立即更新」，然后重启客户端。'
+        : React.createElement(
+            'span',
+            null,
+            '在 设置 → 插件 里装 ',
+            React.createElement('span', { className: 'dsh550c-code' }, INSTALL_SPEC),
+            '，然后重启。',
+          ),
+      canApply
+        ? null
+        : React.createElement('button', { type: 'button', className: 'dsh550c-link', onClick: () => copy(INSTALL_SPEC) }, copied ? '已复制' : '复制包名'),
+    )
+  } else if (state.status === 'done') {
+    note = React.createElement(
+      'div',
+      { className: 'dsh550c-note' },
+      payload !== null && payload.state === 'unknown'
+        ? '查不到最新版本。'
+        : '已是最新 v' + String(payload?.current ?? current ?? '?') + '。',
+      React.createElement('button', { type: 'button', className: 'dsh550c-link', onClick: openPackagePage }, '打开 npm 页面'),
+    )
+  }
+
+  return React.createElement(
+    'div',
+    { className: 'dsh550c-row' },
+    React.createElement(
+      'div',
+      { className: 'dsh550c-row-text' },
+      React.createElement('div', { className: 'dsh550c-row-title' }, '版本与更新'),
+      React.createElement(
+        'div',
+        { className: 'dsh550c-row-desc' },
+        current === null ? '从 npm 查询最新版本。' : '当前 v' + current + '，从 npm 查询最新版本。',
+      ),
+      hostStale && state.status === 'idle'
+        ? React.createElement('div', { className: 'dsh550c-note bad' }, '宿主半边是旧版本，重启客户端后可用。')
+        : null,
+      note,
+    ),
+    React.createElement(
+      'div',
+      { className: 'dsh550c-row-ctrl' },
+      React.createElement(
+        'button',
+        {
+          type: 'button',
+          className: 'dsh550c-preview',
+          disabled: state.status === 'checking',
+          onClick: check,
+        },
+        state.status === 'checking' ? '检查中…' : '检查更新',
+      ),
+      outdated && canApply && applying.status !== 'done'
+        ? React.createElement(
+            'button',
+            {
+              type: 'button',
+              className: 'dsh550c-preview',
+              disabled: applying.status === 'running',
+              onClick: apply,
+            },
+            applying.status === 'running' ? '更新中…' : '立即更新',
+          )
+        : null,
     ),
   )
+}
 
-  ctx.slots.inject('settings.550c.item', () =>
+/**
+ * The colour-scheme row. Amber is the original author's palette — the default,
+ * and the only one that overrides nothing at all.
+ */
+
+ctx.slots.inject('settings.550c.item', () =>
     ctx.slots.register(
       { name: 'settings.550c.item', id: 'skin-550c', order: 10 },
       function ThemeRow() {
@@ -1080,6 +1251,10 @@ function apply(ctx) {
   ctx.slots.inject('settings.550c.item', () =>
     ctx.slots.register({ name: 'settings.550c.item', id: 'skin-550c-furniture', order: 40 }, FurnitureRow),
   )
+/* 「版本」行：已装版本 / 是否有新版 / 一键更新（与 boot 的同一套机制）。 */
+ctx.slots.inject('settings.550c.item', () =>
+  ctx.slots.register({ name: 'settings.550c.item', id: 'skin-550c-update', order: 50 }, VersionRow),
+)
 }
 
 exports.name = 'skin-550c'

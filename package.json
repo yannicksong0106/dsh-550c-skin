@@ -1,6 +1,6 @@
 {
   "name": "dsh-550c-skin",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.1",
   "description": "550C 皮肤：把 DeepSeek Harness 的整个界面换成 550C 控制台——四套磷光配色（琥珀/绿/青/白）、扫描线与暗角、等宽字体、机器读数栏，与 dsh-550c-boot 的开机片头同一套视觉。",
   "type": "module",
   "main": "./lib/index.js",
@@ -44,14 +44,14 @@
   "keywords": [
     "dsh",
     "dsh-plugin",
-    "deepseek-harness",
-    "cordis",
-    "theme",
-    "skin",
-    "crt",
-    "phosphor",
+    "dsh-550c",
     "550c",
-    "web-ui"
+    "suite",
+    "skin",
+    "theme",
+    "皮肤",
+    "主题",
+    "外观"
   ],
   "engines": {
     "node": ">=20"
@@ -78,6 +78,15 @@
         "@deepseek-ai/dsh-client-ui-settings"
       ],
       "platform": "web"
+    },
+    "suite": {
+      "id": "dsh-550c",
+      "role": "skin",
+      "title": "550C",
+      "recommends": [
+        "dsh-550c-boot"
+      ],
+      "note": "同一套件的两个插件，可各自独立安装。「550C」设置页由 dsh-550c-boot 提供，本插件只往里加外观相关的行；两者没有任何代码依赖。"
     }
   },
   "scripts": {
@@ -88,5 +97,47 @@
     "verify": "node scripts/build.mjs && node --check lib/client.js && node --check lib/index.js && node --test test/*.test.mjs",
     "prepublishOnly": "node scripts/build.mjs && node --check lib/client.js && node --check lib/index.js"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "dshWorkshop": {
+    "schema": "omdsh-workshop-package/v1",
+    "type": "plugin",
+    "integration": {
+      "protocol": "harness-profile",
+      "artifact": "cordis.patch.yml"
+    },
+    "install": {
+      "mode": "transactional",
+      "adapter": "profile-bundle",
+      "failurePolicy": "generation-rollback",
+      "touchesCurrentBeforeActivation": false
+    },
+    "lifecycle": {
+      "activation": "restart-profile",
+      "dispose": "supported"
+    },
+    "permissions": [
+      "web:index-inject",
+      "web:http-route",
+      "network:npm-registry",
+      "browser:local-storage",
+      "dom:overlay"
+    ],
+    "compatibility": {
+      "dshVersions": [
+        "0.2.0-rc.1"
+      ]
+    },
+    "capability": {
+      "id": "skin-550c",
+      "kind": "ui",
+      "invocation": "Boot the profile's Web GUI, then switch the skin from 设置 → 550C → 外观: it registers four phosphor schemes plus scan-line / vignette / panel treatments on the theme service, and keeps the choice in lib/index.js's state file.",
+      "expected": "The whole shell repaints in the chosen 550C scheme (amber / green / cyan / white) with its scan line, vignette and monospace treatment; the choice survives a restart, and 设置 → 550C → 外观 also shows this package version and can check npm for a newer one."
+    },
+    "evidence": {
+      "install": null,
+      "failureIsolation": null,
+      "hotReload": null,
+      "remove": null
+    }
+  }
 }
