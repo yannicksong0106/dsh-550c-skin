@@ -175,7 +175,7 @@ test('the remapped tokens are ones DSH actually reads', (t) => {
   assert.deepEqual(dead, [], 'these tokens are remapped but nothing reads them:\n  ' + dead.join('\n  '))
 })
 
-test('the settings rows live on this plugin own page, not the shared ledger', () => {
+test('the skin adds rows to the page boot owns, and never claims one itself', () => {
   // `settings.general.item` is the one ledger every feature package shares, and
   // the boot animation plugin already holds the same order triple there (26/27/28
   // — see the note in src/client.js). Equal orders tie, a stable sort leaves them
@@ -191,11 +191,29 @@ test('the settings rows live on this plugin own page, not the shared ledger', ()
   assert.equal(
     code.includes('settings.general.item'),
     false,
-    'the skin must not inject into the shared General ledger — it has its own section',
+    'the skin must not inject into the shared General ledger',
   )
-  assert.ok(code.includes("name: 'settings.section'"), 'the skin must register a settings page')
-  assert.ok(code.includes("children: { 'settings.550c.item'"), 'its page must declare a child slot for its rows')
-  for (const id of ['skin-550c', 'skin-550c-atmosphere', 'skin-550c-panel', 'skin-550c-furniture']) {
+
+  // 设置页现在由 dsh-550c-boot 唯一提供（两边各写一份页壳与子插槽声明，
+  // 改一处要改两处，加新动画时必然漏）。所以本插件：
+  //   · 不再注册 settings.section，也不再声明 children；
+  //   · 不再需要 __dsh550cPageOwner 那面"谁占页面"的旗子；
+  //   · 只往 boot 已经声明好的 settings.550c.item 里加自己的行。
+  assert.equal(
+    code.includes("name: 'settings.section'"),
+    false,
+    'the skin must not register its own settings page any more — boot owns it',
+  )
+  assert.equal(
+    code.includes('__dsh550cPageOwner'),
+    false,
+    'the page-ownership flag went away with the page registration',
+  )
+  assert.ok(
+    code.includes("ctx.slots.inject('settings.550c.item'"),
+    'its rows must inject into the slot boot declares',
+  )
+  for (const id of ['skin-550c', 'skin-550c-atmosphere', 'skin-550c-panel', 'skin-550c-furniture', 'skin-550c-update']) {
     assert.ok(code.includes(`id: '${id}'`), `row ${id} must be registered`)
   }
 })

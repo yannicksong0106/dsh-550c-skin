@@ -5,6 +5,18 @@
 **当前状态：`0.1.0-beta.1`，已发布。** 下面第一节是这次发布的内容，
 在真正发布前会随改动继续调整。
 
+## [未发布] - 2026-10-18
+
+### 适配
+
+- **适配 DSH `0.2.0-rc.2`**：在 rc.2 的 profile 里实测通过 —— 插槽体系
+  （`settings.section` / `settings.general.item` / `settings.\u003550c.item`）、
+  `webserver/index-inject`、`webServer.register` 与客户端模块加载器均未变，
+  **插件零代码改动即可运行**（0 报错，设置页与三个分组、版本注入、首帧黑帧全部正常）。
+- `dshWorkshop.compatibility.dshVersions` 增加 `0.2.0-rc.2`；
+  `engines.dsh` 保持 `>=0.2.0-rc.1`（rc.1 仍可用，不额外收紧）。
+- 与 boot 同一套更新机制，同样只在 rc.2 上做了实测确认。
+
 ## [0.1.0-beta.1] - 2026-10-16
 
 首个对外版本，仍是 beta。
