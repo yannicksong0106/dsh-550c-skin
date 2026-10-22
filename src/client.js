@@ -637,7 +637,7 @@ const ROW_CSS = `
 .dsh550c-skin-seg button{border:0;background:transparent;color:var(--dsw-alias-label-secondary,#666);font-family:inherit;font-size:12.5px;line-height:1.4;padding:5px 12px;cursor:pointer}
 .dsh550c-skin-seg button+button{border-left:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.35))}
 .dsh550c-skin-seg button:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.14))}
-.dsh550c-skin-seg button.on{background:var(--dsw-alias-brand-primary,#4d6bfe);color:var(--dsw-alias-label-primary-foreground,#fff)}
+.dsh550c-skin-seg button.on{background:#e8a020;color:#191006;font-weight:600}
 `
 
 function ensureRowStyle() {
