@@ -1,6 +1,6 @@
 {
   "name": "dsh-550c-skin",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "description": "550C 皮肤：把 DeepSeek Harness 的整个界面换成 550C 控制台——四套磷光配色（琥珀/绿/青/白）、扫描线与暗角、等宽字体、机器读数栏，与 dsh-550c-boot 的开机片头同一套视觉。",
   "type": "module",
   "main": "./lib/index.js",
