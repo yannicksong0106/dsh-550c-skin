@@ -37,6 +37,13 @@ const PREFS_KEY = 'dsh-550c-skin:prefs'
 const STATE_ROUTE = '/dsh-550c-skin/state'
 
 /** 宿主注入的已装版本（lib/index.js VERSION_GLOBAL）。 */
+/**
+ * 皮肤版本号：由本插件的【宿主半边】经 index-inject 注入页面。
+ *
+ * 这是 boot ↔ skin 之间唯一的"皮肤在场"信号 —— dsh-550c-boot 的 src/state.js
+ * 把它当作唯一事实来源（dsh550cSkinInstalled()）。改这个名字要两边一起改，
+ * boot 的契约检查会盯着。
+ */
 const VERSION_GLOBAL = '__dsh550cSkinVersion'
 /** 宿主的更新路由（lib/index.js UPDATE_ROUTE / APPLY_ROUTE）。 */
 const UPDATE_ROUTE = '/dsh-550c-skin/update'
@@ -637,6 +644,10 @@ const ROW_CSS = `
 .dsh550c-skin-seg button{border:0;background:transparent;color:var(--dsw-alias-label-secondary,#666);font-family:inherit;font-size:12.5px;line-height:1.4;padding:5px 12px;cursor:pointer}
 .dsh550c-skin-seg button+button{border-left:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.35))}
 .dsh550c-skin-seg button:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.14))}
+/* 选中态固定黑底白字：不能借 brand-primary / brand-text —— 那两个值随主题翻面，
+   皮肤还会改写它们，结果就是一会儿黑底黑字、一会儿白底白字。
+   dsh-550c-boot 里有一条逐字相同的规则（SEG_ACTIVE_RULE），【改这里必须同步改那边】；
+   两边的字面量由 boot 的 scripts/check-skin-contract.mjs 逐字比对。 */
 .dsh550c-skin-seg button.on{background:#111;color:#fff;font-weight:600}
 `
 
